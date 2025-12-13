@@ -1,6 +1,6 @@
 {
   "name": "mopidy-pibox",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "type": "module",
   "private": true,
   "dependencies": {
@@ -28,7 +28,8 @@
     "start": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "prepare-patch": "./bump_version.sh patch"
   },
   "devDependencies": {
     "@eslint/js": "9.39.2",
