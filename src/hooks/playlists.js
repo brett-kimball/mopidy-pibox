@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPlaylists } from "services/mopidy";
+import { getPlaylistsAndMixes } from "services/mopidy";
 
 export const usePlaylists = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ["playlists"],
-    queryFn: getPlaylists,
+    queryFn: getPlaylistsAndMixes,
     staleTime: 60_000,
   });
 

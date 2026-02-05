@@ -1,0 +1,25 @@
+[core]
+# Core settings — adjust paths to suit your instance
+cache_dir = /var/cache/mopidy-instance1
+data_dir = /var/lib/mopidy-instance1
+
+[pibox]
+enabled = true
+# Human-readable title used for bookmarks and manifests for this instance
+site_title = Fiddler's Green
+# Example default playlist (replace with your playlist URI)
+default_playlists = tidal:playlist:bd136bdc-7609-4b3f-a8ad-189bfb44c59e
+default_skip_threshold = 3
+# Optional: override the server address used in generated QR codes and links
+# Example: server_address = http://172.16.33.243:6680
+server_address =
+offline = false
+disable_analytics = false
+
+# Optional rate-limiting / per-user queue limits
+# vote_limit_count = 2
+# vote_limit_minutes = 60
+# queue_limit_per_user = 2
+
+# NOTE: This is an example config. Copy it to /etc/mopidy/instance1.conf
+# and adjust paths and ownership as needed before starting an instance.

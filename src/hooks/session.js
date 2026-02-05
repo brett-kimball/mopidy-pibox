@@ -5,6 +5,7 @@ import {
   getCurrentSession,
   onSessionEnded,
   onSessionStarted,
+  onSessionPlaylistsUpdated,
   onTrackPlaybackEnded,
 } from "services/mopidy";
 
@@ -31,8 +32,15 @@ export const useSessionDetails = () => {
       });
     });
 
+    const cleanupPlaylistsUpdated = onSessionPlaylistsUpdated(() => {
+      queryClient.invalidateQueries({
+        queryKey: ["session", "sessionDetails"],
+      });
+    });
+
     return () => {
       cleanupTracklistChanged();
+      cleanupPlaylistsUpdated();
     };
   }, []);
 
@@ -40,11 +48,13 @@ export const useSessionDetails = () => {
     session: data
       ? {
           started: data.started,
+          playlists: data.playlists,
           playlistNames: data.playlists.map((p) => p.name),
           skipThreshold: data.skipThreshold,
           startedAt: dayjs(data.startTime),
           playedTracks: data.playedTracks,
           remainingPlaylistTracks: data.remainingPlaylistTracks,
+          trackSources: data.trackSources || {},
         }
       : null,
     sessionLoading: isLoading,

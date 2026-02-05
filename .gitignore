@@ -31,3 +31,33 @@ mopidy_pibox/static
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# local venvs
+.venv/
+venv/
+
+# OS and editor
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Python packaging artifacts
+pip-wheel-metadata/
+*.egg
+
+# build artifacts
+/old_wheel/
+
+# credential files (do not commit)
+.env
+.env.*
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+tidal-oauth.json
+*.oauth.json
+
+# backups and temporary folders
+OLD/

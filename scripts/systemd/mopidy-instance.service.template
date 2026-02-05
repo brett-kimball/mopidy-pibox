@@ -1,0 +1,22 @@
+[Unit]
+Description=Mopidy (pibox instance: %INSTANCE%)
+After=network.target
+
+[Service]
+Type=simple
+User=mopidy
+Group=mopidy
+# Path to the per-instance Mopidy config file. Replace the placeholder below.
+Environment=MOPIDY_CONFIG=%CONFIG_PATH%
+ExecStart=/usr/bin/mopidy --config %CONFIG_PATH%
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+# Usage:
+# 1. Copy this file to /etc/systemd/system/mopidy-<instance>.service
+# 2. Replace %INSTANCE% with a short name and %CONFIG_PATH% with the full
+#    path to the per-instance config file (for example /etc/mopidy/instance1.conf).
+# 3. Run `sudo systemctl daemon-reload` and `sudo systemctl enable --now mopidy-<instance>.service`.

@@ -4,9 +4,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { IconButton } from "@mui/material";
 import { useAdmin } from "hooks/admin";
+import { useConfig } from "hooks/config";
 
 const NavigationBar = () => {
   const { isAdmin, triggerSecretAdminAction } = useAdmin();
+  const { config } = useConfig();
+  const siteTitle = config?.siteTitle ?? "pibox";
 
   return (
     <ul className="flex justify-between items-center list-none m-0 px-2">
@@ -16,7 +19,7 @@ const NavigationBar = () => {
             className="text-start inline-block font-bold text-xl pl-2"
             onClick={triggerSecretAdminAction}
           >
-            pibox
+            {siteTitle}
           </h2>
         ) : (
           <Link className="Link" to="/session">

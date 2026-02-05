@@ -68,3 +68,438 @@ h3 {
 .Link:hover {
 	background-color: #FAFAFF;
 } */
+
+/* View-only dark mode */
+.root-fullscreen {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+}
+.view-page {
+  /* Minimal animated gradient (original look) */
+  background: linear-gradient(135deg, #022b3a 0%, #04557b 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 20s ease-in-out infinite;
+  color: #e8fbff;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.view-page.view-transparent {
+  background: transparent;
+}
+.view-burgee {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  width: 180px;
+  opacity: 0.95;
+  mix-blend-mode: normal;
+  /* subtle drop-shadow to make the burgee appear to hover */
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,0.66)) drop-shadow(0 0 8px rgba(58,120,255,0.08));
+  transition: transform 240ms ease, filter 240ms ease, opacity 240ms ease;
+  transform: translateY(0);
+  will-change: transform, filter;
+  z-index: 2;
+}
+
+.view-burgee:hover {
+  transform: translateY(-6px);
+  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.72)) drop-shadow(0 0 20px rgba(58,120,255,0.16));
+  opacity: 1;
+}
+
+/* Ambient pulsing glow (no hover required; good for unattended display) */
+@keyframes burgeePulse {
+  0% {
+    filter: drop-shadow(0 16px 32px rgba(0,0,0,0.64)) drop-shadow(0 0 6px rgba(58,120,255,0.06));
+  }
+  50% {
+    filter: drop-shadow(0 22px 44px rgba(0,0,0,0.72)) drop-shadow(0 0 20px rgba(58,120,255,0.18));
+  }
+  100% {
+    filter: drop-shadow(0 16px 32px rgba(0,0,0,0.64)) drop-shadow(0 0 6px rgba(58,120,255,0.06));
+  }
+}
+.view-burgee {
+  animation: burgeePulse 6s ease-in-out infinite;
+}
+
+/* Progress bar fixed to bottom using the burgee as the indicator */
+.view-progress {
+  pointer-events: none;
+}
+.progress-burgee {
+  width: 180px;
+  pointer-events: none;
+  will-change: left, transform;
+  transition: left 120ms linear;
+  transform: translateZ(0);
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,0.66)) drop-shadow(0 0 8px rgba(58,120,255,0.08));
+}
+
+
+/* Fish swim animations */
+.fish {
+  display: none !important;
+}
+.fish-1 {
+  top: 20%;
+  left: -12%;
+  width: 140px;
+  animation: swim1 12s linear infinite;
+}
+.fish-2 {
+  top: 45%;
+  left: -18%;
+  width: 100px;
+  opacity: 0.9;
+  animation: swim2 18s linear infinite;
+}
+.fish-3 {
+  top: 68%;
+  left: -10%;
+  width: 120px;
+  opacity: 0.92;
+  animation: swim3 14s linear infinite;
+}
+
+@keyframes swim1 {
+  0% { transform: translate3d(0,0,0) scaleX(1); left: -18%; }
+  25% { transform: translate3d(30vw,-2vh,0) scaleX(1.05) rotate(-3deg); }
+  50% { transform: translate3d(60vw,0,0) scaleX(-1) rotate(2deg); left: 60%; }
+  75% { transform: translate3d(30vw,2vh,0) scaleX(-1.05) rotate(3deg); }
+  100% { transform: translate3d(0,0,0) scaleX(1); left: -18%; }
+}
+
+@keyframes swim2 {
+  0% { transform: translate3d(0,0,0) scaleX(1); left: -22%; }
+  50% { transform: translate3d(70vw,-4vh,0) scaleX(-1) rotate(-4deg); left: 70%; }
+  100% { transform: translate3d(0,0,0) scaleX(1); left: -22%; }
+}
+
+@keyframes swim3 {
+  0% { transform: translate3d(0,0,0) scaleX(1); left: -14%; }
+  50% { transform: translate3d(65vw,3vh,0) scaleX(-1) rotate(3deg); left: 65%; }
+  100% { transform: translate3d(0,0,0) scaleX(1); left: -14%; }
+}
+
+/* 3D card / backdrop styles for now-playing and tracklist */
+.view-nowplaying,
+.view-tracklist {
+  /* Containers are transparent — visual 3D effects apply to their contents only */
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  transition: none;
+  transform: none;
+}
+
+/* container float animations removed so only artwork/text animate */
+.view-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 3rem;
+  gap: 2rem;
+}
+
+/* Provide a 3D perspective for children so transforms feel deep */
+.view-content {
+  perspective: 1200px;
+}
+
+.view-nowplaying,
+.view-tracklist {
+  transform-style: preserve-3d;
+}
+
+/* Slightly translucent track cards only on the /view page */
+.view-page .tracklist-item.MuiPaper-root,
+.view-page .tracklist-item.MuiCard-root {
+  background: rgba(255,255,255,0.06) !important;
+  color: inherit !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.45) !important;
+  border-radius: 10px !important;
+}
+
+/* Ensure vote buttons/text contrast strongly on the /view page */
+.view-page .tracklist-item .MuiButton-root {
+  color: #ffffff !important;
+}
+.view-page .tracklist-item .MuiButton-root .MuiButton-startIcon,
+.view-page .tracklist-item .MuiButton-root .MuiButton-endIcon {
+  color: #ffffff !important;
+}
+
+/* make inline QR container translucent in /view like track cards */
+.view-page .view-qr {
+  background: rgba(255,255,255,0.06) !important;
+  padding: 8px !important;
+  border-radius: 10px !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.45) !important;
+}
+
+/* Artwork: lift and layered shadow for depth */
+.view-nowplaying img,
+.view-tracklist img {
+  transform: translate3d(0, 0, 18px) scale(1.02);
+  transition: transform 900ms ease, box-shadow 900ms ease;
+  box-shadow: 0 28px 60px rgba(0,0,0,0.66), 0 6px 20px rgba(0,0,0,0.45), 0 0 18px rgba(58,120,255,0.06) inset;
+  border-radius: 12px;
+}
+
+/* Text: layered shadows and subtle z-offset to appear raised */
+.view-nowplaying h2,
+.view-nowplaying h3,
+.view-tracklist h2,
+.view-tracklist h3,
+.view-tracklist .MuiTypography-root {
+  transform: translateZ(8px);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 8px 18px rgba(0,0,0,0.45), 0 0 10px rgba(58,120,255,0.03);
+}
+
+/* Exclude queued track title/artist from 3D effects so text stays crisp */
+.view-tracklist .tracklist-item h2,
+.view-tracklist .tracklist-item h3,
+.view-tracklist .tracklist-item .MuiTypography-root {
+  transform: none !important;
+  text-shadow: none !important;
+}
+
+/* Make long-running subtle motion so unattended display still feels alive */
+.view-nowplaying img {
+  animation: liftSlow 12s ease-in-out infinite;
+}
+.view-tracklist img {
+  animation: liftSlow 14s ease-in-out infinite;
+}
+
+@keyframes liftSlow {
+  0% { transform: translate3d(0, 0, 16px) scale(1.02); }
+  50% { transform: translate3d(0, -4px, 26px) scale(1.035); }
+  100% { transform: translate3d(0, 0, 16px) scale(1.02); }
+}
+
+/* "Playing from" text on TV view - extra clearance above the animated artwork */
+.view-nowplaying > div > h3:first-child {
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.view-nowplaying {
+  flex: 1 1 60%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.view-tracklist {
+  flex: 0 0 35%;
+  max-width: 35%;
+}
+
+/* Large-display (TV) adjustments: use viewport-relative units for consistent proportions across all resolutions */
+@media (min-width: 1280px) {
+  .view-content {
+    padding: 1vh 2vw;
+    gap: 1vw;
+  }
+
+  .view-nowplaying {
+    flex: 1 1 68%;
+    padding: 0 1vw;
+  }
+
+  .view-tracklist {
+    flex: 0 0 32%;
+    max-width: 32%;
+    padding: 0 1vw;
+  }
+
+  /* Override Thumbnail constraints — let artwork scale for TV viewing */
+  .view-nowplaying img {
+    max-width: none;
+    min-width: auto;
+    width: auto;
+    max-height: 65vh;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* NowPlaying headings — viewport-scaled for consistent proportions */
+  /* At 1920px: 2.9vw=55.7px, 1.65vw=31.7px (matches original 1080p rem values) */
+  .view-nowplaying h2 {
+    flex: 1 1 auto;
+    padding: 0 2vw;
+    margin: 0.25vh 0;
+    font-size: 2.9vw;
+    line-height: 1.1;
+  }
+
+  /* Ticker title animation for long track names on /view */
+  .view-nowplaying h2.ticker-title {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    width: 100% !important;
+    display: block !important;
+    padding: 0.25rem 0 !important;
+    margin: 0.25rem 0 !important;
+  }
+
+  @keyframes ticker {
+    0% {
+      transform: translate3d(0%, 0, 0);
+    }
+    100% {
+      transform: translate3d(-100%, 0, 0);
+    }
+  }
+
+  .view-nowplaying h3 {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
+    font-size: 1.65vw;
+  }
+
+  /* Tracklist item titles - viewport scaled */
+  /* At 1920px: 1.65vw=31.7px, 1.15vw=22px (matches original 1080p) */
+  .view-tracklist .tracklist-item h2,
+  .view-tracklist .tracklist-item .MuiTypography-root {
+    font-size: 1.65vw !important;
+  }
+
+  .view-tracklist .tracklist-item h3 {
+    font-size: 1.15vw !important;
+  }
+
+  /* Queue-count ("1 song queued") */
+  .view-tracklist .view-queue-count {
+    font-size: 1.65vw !important;
+    font-weight: 600;
+    color: #e8fbff !important;
+    padding-bottom: 0.5vh;
+  }
+
+  /* Vote button text */
+  .view-page .tracklist-item .MuiButton-root {
+    font-size: 1.15vw !important;
+    padding-left: 0.5vw !important;
+    padding-right: 0.5vw !important;
+  }
+
+  /* Reduce unwanted word-wrap */
+  .view-tracklist .tracklist-item h2,
+  .view-tracklist .tracklist-item .MuiTypography-root {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+  }
+
+  .view-tracklist .tracklist-item h3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+  }
+
+  /* Burgee - viewport scaled */
+  .view-burgee {
+    width: 9vw;
+    bottom: 1vh;
+    left: 1vw;
+  }
+
+  .progress-burgee {
+    width: 7.2vw;
+    bottom: 1.5vh !important;
+  }
+
+  /* QR code - viewport scaled */
+  .view-page .view-qr {
+    padding: 0.6vw !important;
+    max-width: 100%;
+  }
+  .view-page .view-qr svg,
+  .view-page .view-qr canvas {
+    width: 10vw !important;
+    height: 10vw !important;
+    max-width: 100%;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* Reduce decorative overlays slightly */
+  .view-page::after {
+    opacity: 0.6;
+  }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 50% 40%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 60%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Caustic light overlay (animated radial highlights) */
+.view-page::before,
+.view-page::after {
+  display: none !important;
+}
+
+@keyframes caustics {
+  0% { background-position: 0px 0px, 0px 0px, 0px 0px; }
+  25% { background-position: 180px -80px, -220px 60px, 120px -40px; }
+  50% { background-position: 360px -160px, -440px 120px, 240px -80px; }
+  75% { background-position: 220px -100px, -260px 80px, 140px -48px; }
+  100% { background-position: 0px 0px, 0px 0px, 0px 0px; }
+}
+
+/* Pronounced moving wave/reflection overlay */
+.view-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* pronounced surface ripples: wider, semi-transparent bands */
+  background: repeating-linear-gradient(-30deg, rgba(255,255,255,0.04) 0 4px, transparent 4px 40px),
+              radial-gradient(circle at 30% 10%, rgba(255,255,255,0.02), transparent 30%);
+  mix-blend-mode: overlay;
+  opacity: 0.85;
+  transform: translateZ(0);
+  animation: waves 10s linear infinite;
+  background-size: 140px 60px, 1000px 500px;
+}
+
+@keyframes waves {
+  0% { transform: translate3d(0,0,0) translateX(0); background-position: 0 0; }
+  50% { transform: translate3d(200px,-48px,0) translateX(200px); background-position: 200px -40px; }
+  100% { transform: translate3d(0,0,0) translateX(0); background-position: 0 0; }
+}
+
+/* Make sure view content sits above overlays */
+.view-content {
+  position: relative;
+  z-index: 1;
+}

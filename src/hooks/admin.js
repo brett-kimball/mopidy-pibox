@@ -25,8 +25,14 @@ export const useAdminContext = () => {
     setAdminSecretActionCounter((prev) => prev + 1);
   }, [admin]);
 
+  const clearAdmin = useCallback(() => {
+    setAdmin(false);
+    setAdminSecretActionCounter(0);
+  }, []);
+
   return {
     isAdmin: admin,
     triggerSecretAdminAction,
+    clearAdmin,
   };
 };

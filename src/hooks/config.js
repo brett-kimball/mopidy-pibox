@@ -1,10 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { getConfig } from "services/mopidy";
+import { getConfig, setPiboxPongTimeout } from "services/mopidy";
 
 export const useConfig = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ["config"],
-    queryFn: getConfig,
+    queryFn: async () => {
+      const config = await getConfig();
+      // Apply configurable WebSocket PONG timeout
+      if (config?.wsPongTimeoutMs) {
+        setPiboxPongTimeout(config.wsPongTimeoutMs);
+      }
+      return config;
+    },
     staleTime: Infinity,
   });
 

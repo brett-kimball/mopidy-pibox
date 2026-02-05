@@ -13,7 +13,7 @@ import {
 
 let subscriptionInitialised = false;
 
-export const useNowPlaying = () => {
+export const useNowPlaying = ({ artworkSize = 640 } = {}) => {
   const { data: currentTrack, isLoading: currentTrackLoading } = useQuery({
     queryKey: ["currentTrack"],
     queryFn: getCurrentTrack,
@@ -27,12 +27,12 @@ export const useNowPlaying = () => {
   });
 
   const { data: artworkUrl, isLoading: artworkUrlLoading } = useQuery({
-    queryKey: [currentTrack, "artworkUrl"],
+    queryKey: [currentTrack, "artworkUrl", artworkSize],
     queryFn: async () => {
       if (!currentTrack) {
         return null;
       }
-      return getArtwork(currentTrack.uri);
+      return getArtwork(currentTrack.uri, artworkSize);
     },
     enabled: !!currentTrack,
     staleTime: 30000,
@@ -53,7 +53,19 @@ export const useNowPlaying = () => {
       queryClient.invalidateQueries({ queryKey: ["playbackState"] });
     });
 
-    return cleanup;
+    // When the app becomes visible again, refetch the current track
+    // Note: We don't invalidate artworkUrl here to preserve the thumbnail while reconnecting
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        queryClient.invalidateQueries({ queryKey: ["currentTrack"] });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cleanup();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   return {

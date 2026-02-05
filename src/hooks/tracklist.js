@@ -33,7 +33,8 @@ export const useTracklist = () => {
   }, []);
 
   return {
-    tracklist: data,
+    tracklist: data?.tracklist,
+    retryAfterSeconds: data?.retry_after_seconds,
     tracklistLoading: isLoading,
     error,
     refetchTracklist: refetch,

@@ -7,7 +7,6 @@ import { useLocation } from "wouter";
 import toast from "react-hot-toast";
 import BounceLoader from "react-spinners/BounceLoader";
 import CloseIcon from "@mui/icons-material/Close";
-import { useDebounce } from "hooks/debounce.js";
 import { IconButton } from "@mui/material";
 import { Suggestions } from "./Suggestions.jsx";
 
@@ -24,6 +23,14 @@ const Search = () => {
   const queue = async (track) => {
     try {
       const updatedTracklist = await queueTrack(track);
+      // Track that this user added this track (for delete functionality)
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(`pibox_added_${track.uri}`, "1");
+        }
+      } catch (e) {
+        // ignore
+      }
       playIfStopped();
       setSearchTerm("");
 
@@ -38,31 +45,27 @@ const Search = () => {
     }
   };
 
-  const debouncedSearch = useDebounce(async () => {
+  const performSearch = async () => {
     if (!searchTerm) {
       return;
     }
 
     setFetching(true);
-    const queryParameters = searchTerm
-      .split(" ")
-      .filter((term) => !!term)
-      .map((x) => `*${x}*`);
+    // Convert spaces to + for better Tidal AND-style search, de-dupe
+    // consecutive +/spaces, and strip leading +/spaces.
+    const queryString = searchTerm.trim().replace(/[\s+]+/g, '+').replace(/^\++/, '');
     try {
-      const results = await searchLibrary(queryParameters);
+      const results = await searchLibrary([queryString]);
       setResults(results);
       setFetching(false);
     } catch (error) {
       setError(error);
       setFetching(false);
     }
-  }, 500);
+  };
 
   const onSearchValueChange = (newValue) => {
     setSearchTerm(newValue);
-    if (newValue) {
-      debouncedSearch();
-    }
   };
 
   const searchResults = results
@@ -131,8 +134,8 @@ const Search = () => {
             >
               <div style={{ margin: "10px", display: "flex" }}>
                 <SearchBox
-                  onSubmit={debouncedSearch}
-                  term={searchTerm}
+                  onSubmit={performSearch}
+                  value={searchTerm}
                   onValueChange={onSearchValueChange}
                 />
                 <IconButton

@@ -2,20 +2,17 @@ import React, { useState } from "react";
 import {
   TextField,
   Button,
-  FormControl,
   Checkbox,
   FormControlLabel,
-  Autocomplete,
 } from "@mui/material";
-import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import { useConfig } from "hooks/config";
 import { usePlaylists } from "hooks/playlists";
 import { LoadingScreen } from "components/common/LoadingScreen";
+import PlaylistSelector from "components/common/PlaylistSelector";
 
 const NewSessionPage = ({ onStartSessionClick }) => {
   const {
-    config: { defaultPlaylists, defaultSkipThreshold, offline },
+    config: { defaultPlaylists, defaultSkipThreshold, offline, siteTitle },
   } = useConfig();
   const { playlists, playlistsLoading } = usePlaylists();
 
@@ -24,6 +21,7 @@ const NewSessionPage = ({ onStartSessionClick }) => {
       <OfflineSessionForm
         initialSkipThreshold={defaultSkipThreshold}
         onSubmit={onStartSessionClick}
+        siteTitle={siteTitle}
       />
     );
   }
@@ -42,11 +40,12 @@ const NewSessionPage = ({ onStartSessionClick }) => {
       initialPlaylists={initialPlaylists}
       availablePlaylists={playlists}
       onSubmit={onStartSessionClick}
+      siteTitle={siteTitle}
     />
   );
 };
 
-function OfflineSessionForm({ onSubmit, initialSkipThreshold }) {
+function OfflineSessionForm({ onSubmit, initialSkipThreshold, siteTitle }) {
   const [votesToSkip, setVotesToSkip] = useState(`${initialSkipThreshold}`);
   const [automaticallyStartPlaying, setAutomaticallyStartPlaying] =
     useState(true);
@@ -66,7 +65,7 @@ function OfflineSessionForm({ onSubmit, initialSkipThreshold }) {
       className="flex flex-col items-center justify-evenly mx-auto h-4/5 w-4/5"
       onSubmit={handleSubmit}
     >
-      <h2 className="font-bold text-xl">pibox</h2>
+      <h2 className="font-bold text-xl">{siteTitle ?? "pibox"}</h2>
 
       <TextField
         fullWidth
@@ -120,6 +119,7 @@ function NewSessionForm({
   initialSkipThreshold,
   initialPlaylists,
   availablePlaylists,
+  siteTitle,
 }) {
   const [votesToSkip, setVotesToSkip] = useState(`${initialSkipThreshold}`);
   const [automaticallyStartPlaying, setAutomaticallyStartPlaying] =
@@ -142,7 +142,7 @@ function NewSessionForm({
       className="flex flex-col items-center justify-evenly mx-auto h-4/5 w-4/5"
       onSubmit={handleSubmit}
     >
-      <h2 className="font-bold text-xl">pibox</h2>
+      <h2 className="font-bold text-xl">{siteTitle ?? "pibox"}</h2>
 
       <TextField
         fullWidth
@@ -153,38 +153,12 @@ function NewSessionForm({
         placeholder="3"
       />
 
-      <FormControl fullWidth>
-        <Autocomplete
-          multiple
-          disableCloseOnSelect
-          options={availablePlaylists}
-          sx={{
-            margin: 0,
-            width: "100%",
-          }}
-          getOptionLabel={(playlist) => playlist.name}
-          style={{ width: "100%" }}
-          renderInput={(params) => (
-            <TextField {...params} label="Playlists" variant="outlined" />
-          )}
-          renderOption={(props, option, { selected }) => {
-            const { key, ...optionProps } = props;
-            return (
-              <li key={key} {...optionProps}>
-                <Checkbox
-                  icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
-                  checkedIcon={<CheckBoxIcon fontSize="small" />}
-                  style={{ marginRight: 8 }}
-                  checked={selected}
-                />
-                {option.name}
-              </li>
-            );
-          }}
-          value={selectedPlaylists}
-          onChange={(_event, value) => setSelectedPlaylists(value)}
-        />
-      </FormControl>
+      <PlaylistSelector
+        availablePlaylists={availablePlaylists}
+        selectedPlaylists={selectedPlaylists}
+        onChange={setSelectedPlaylists}
+        label="Playlists"
+      />
 
       <FormControlLabel
         control={
