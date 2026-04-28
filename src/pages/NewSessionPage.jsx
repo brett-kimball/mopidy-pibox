@@ -12,7 +12,7 @@ import PlaylistSelector from "components/common/PlaylistSelector";
 
 const NewSessionPage = ({ onStartSessionClick }) => {
   const {
-    config: { defaultPlaylists, defaultSkipThreshold, offline, siteTitle },
+    config: { defaultPlaylists, defaultSkipThreshold, offline, siteTitle, libraryRestrict },
   } = useConfig();
   const { playlists, playlistsLoading } = usePlaylists();
 
@@ -41,6 +41,7 @@ const NewSessionPage = ({ onStartSessionClick }) => {
       availablePlaylists={playlists}
       onSubmit={onStartSessionClick}
       siteTitle={siteTitle}
+      libraryRestrict={libraryRestrict}
     />
   );
 };
@@ -120,6 +121,7 @@ function NewSessionForm({
   initialPlaylists,
   availablePlaylists,
   siteTitle,
+  libraryRestrict,
 }) {
   const [votesToSkip, setVotesToSkip] = useState(`${initialSkipThreshold}`);
   const [automaticallyStartPlaying, setAutomaticallyStartPlaying] =
@@ -189,7 +191,7 @@ function NewSessionForm({
       <Button
         type="submit"
         variant="contained"
-        disabled={!votesToSkip || !selectedPlaylists.length}
+        disabled={!votesToSkip || (!libraryRestrict && !selectedPlaylists.length)}
         color="primary"
       >
         Start

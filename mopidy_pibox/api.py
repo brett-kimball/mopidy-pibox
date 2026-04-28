@@ -9,9 +9,11 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Modifications:
+# - Added CollectionArtistsHandler, CollectionArtistTracksHandler, CollectionSearchHandler
+# - Added CollectionIndexHandler for manual index refresh
+# - Modified SessionPlaylistsHandler to allow empty playlists when library_restrict enabled
+# - Added library_restrict config exposure in ConfigHandler
 # - Added BrandingHandler for runtime-customizable branding images
-# - Added persisted playlist selection fallback in ConfigHandler
-# - Added site_title, reboot_command, ws_pong_timeout_ms config exposure
 
 from __future__ import absolute_import, unicode_literals
 
@@ -167,8 +169,16 @@ class SessionHandler(PiboxHandler):
 class SessionPlaylistsHandler(PiboxHandler):
     """Handler to update playlists during an active session."""
 
+    def initialize(self, core, frontend, config):
+        super(SessionPlaylistsHandler, self).initialize(core, frontend)
+        self.config = config
+
     def post(self):
-        """Update the selected playlists for the current session."""
+        """Update the selected playlists for the current session.
+        
+        When library_restrict is enabled, empty playlists are allowed - this puts
+        pibox into a mode where only user-queued tracks are played.
+        """
         if not self.frontend.pibox.started.get(timeout=API_CALL_TIMEOUT):
             self.set_status(400)
             self.write({"error": "NO_ACTIVE_SESSION", "message": "No active session to update"})
@@ -177,7 +187,11 @@ class SessionPlaylistsHandler(PiboxHandler):
         data = self._get_body()
         playlists = data.get("playlists", [])
 
-        if not playlists:
+        pibox_config = self.config.get("pibox") or {}
+        library_restrict = pibox_config.get("library_restrict", False)
+
+        # Only require playlists when library_restrict is disabled
+        if not playlists and not library_restrict:
             self.set_status(400)
             self.write({"error": "NO_PLAYLISTS", "message": "At least one playlist must be selected"})
             return
@@ -202,6 +216,99 @@ class SuggestionsHandler(PiboxHandler):
         suggestions = self.frontend.get_suggestions(3).get(timeout=API_CALL_TIMEOUT)
         self.set_header("Content-Type", "application/json")
         self.write(json.dumps({"suggestions": suggestions}, cls=ModelJSONEncoder))
+
+
+class CollectionArtistsHandler(PiboxHandler):
+    """Get list of all artists in the user's collection (for library_restrict mode)."""
+    
+    def initialize(self, core, frontend):
+        super(CollectionArtistsHandler, self).initialize(core, frontend)
+
+    def get(self):
+        artists = self.frontend.get_collection_artists().get(timeout=API_CALL_TIMEOUT)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"artists": artists}))
+
+
+class CollectionArtistTracksHandler(PiboxHandler):
+    """Get all tracks for a specific artist in the collection."""
+    
+    def initialize(self, core, frontend):
+        super(CollectionArtistTracksHandler, self).initialize(core, frontend)
+
+    def get(self, artist_name):
+        import urllib.parse
+        artist_name = urllib.parse.unquote(artist_name)
+        tracks = self.frontend.get_tracks_for_artist(artist_name).get(timeout=API_CALL_TIMEOUT)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"artist": artist_name, "tracks": tracks}))
+
+
+class CollectionSearchHandler(PiboxHandler):
+    """Search tracks in the user's collection (for library_restrict mode)."""
+    
+    def initialize(self, core, frontend):
+        super(CollectionSearchHandler, self).initialize(core, frontend)
+
+    def get(self):
+        query = self.get_argument("q", "")
+        if not query or len(query) < 2:
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"query": query, "tracks": []}))
+            return
+        
+        tracks = self.frontend.search_collection(query).get(timeout=API_CALL_TIMEOUT)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"query": query, "tracks": tracks}))
+
+
+class CollectionIndexHandler(PiboxHandler):
+    """Trigger rebuild of collection index or get index status."""
+    
+    def initialize(self, core, frontend):
+        super(CollectionIndexHandler, self).initialize(core, frontend)
+
+    def get(self):
+        """Get collection index status including session-enabled stats."""
+        stats = self.frontend.pibox.get_collection_stats().get(timeout=API_CALL_TIMEOUT)
+        cache_stats = self.frontend.pibox.get_playlist_cache_stats().get(timeout=API_CALL_TIMEOUT)
+        
+        stats["cache"] = cache_stats
+        
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(stats))
+
+    def post(self):
+        """Trigger collection index rebuild.
+        
+        Query params:
+            force: If true, clears playlist cache before rebuilding
+        """
+        try:
+            # Check for force refresh parameter
+            force = self.get_argument("force", "false").lower() == "true"
+            
+            if force:
+                # Clear the playlist cache to force fresh API calls
+                self.frontend.pibox.clear_playlist_cache().get(timeout=API_CALL_TIMEOUT)
+            
+            self.frontend.build_collection_index().get(timeout=120)  # Long timeout for indexing
+            stats = self.frontend.pibox.get_collection_stats().get(timeout=API_CALL_TIMEOUT)
+            
+            if stats.get("indexed"):
+                self.write(json.dumps({
+                    "success": True,
+                    "total_tracks": stats.get("total_tracks", 0),
+                    "enabled_tracks": stats.get("enabled_tracks", 0),
+                    "by_type": stats.get("by_type", {}),
+                    "forced_refresh": force,
+                }))
+            else:
+                self.set_status(500)
+                self.write(json.dumps({"success": False, "error": "Index build returned no results"}))
+        except Exception as e:
+            self.set_status(500)
+            self.write(json.dumps({"success": False, "error": str(e)}))
 
 
 class ConfigHandler(tornado.web.RequestHandler):
@@ -264,6 +371,7 @@ class ConfigHandler(tornado.web.RequestHandler):
                 "siteTitle": pibox_config.get("site_title") or "pibox",
                 "rebootCommand": pibox_config.get("reboot_command", None),
                 "wsPongTimeoutMs": pibox_config.get("ws_pong_timeout_ms") or 4000,
+                "libraryRestrict": pibox_config.get("library_restrict", False),
             }
         )
 

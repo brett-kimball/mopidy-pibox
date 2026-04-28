@@ -410,6 +410,40 @@ export const rebootSystem = async () => {
   throw new Error(err);
 };
 
+// Collection API functions (for library_restrict mode)
+
+export const getCollectionArtists = async () => {
+  const result = await pibox.get("/api/collection/artists");
+  if (result?.status === 200) return result.data?.artists || [];
+  return [];
+};
+
+export const getCollectionArtistTracks = async (artistName) => {
+  const encodedName = encodeURIComponent(artistName);
+  const result = await pibox.get(`/api/collection/artists/${encodedName}/tracks`);
+  if (result?.status === 200) return result.data?.tracks || [];
+  return [];
+};
+
+export const searchCollection = async (query) => {
+  const result = await pibox.get(`/api/collection/search?q=${encodeURIComponent(query)}`);
+  if (result?.status === 200) return result.data?.tracks || [];
+  return [];
+};
+
+export const getCollectionIndexStatus = async () => {
+  const result = await pibox.get("/api/collection/index");
+  if (result?.status === 200) return result.data;
+  return { indexed: false };
+};
+
+export const rebuildCollectionIndex = async (force = false) => {
+  const url = force ? "/api/collection/index?force=true" : "/api/collection/index";
+  const result = await pibox.post(url);
+  if (result?.status === 200) return result.data;
+  throw new Error(result?.data?.error || "Failed to rebuild index");
+};
+
 export const searchLibrary = (searchTerms) =>
   new Promise((resolve) => {
     mopidy.library

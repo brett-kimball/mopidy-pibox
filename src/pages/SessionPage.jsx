@@ -32,6 +32,7 @@ const SessionPage = () => {
   const { config } = useConfig();
   const offline = config?.offline ?? false;
   const siteTitle = config?.siteTitle ?? "pibox";
+  const libraryRestrict = config?.libraryRestrict ?? false;
 
   const [isEditingPlaylists, setIsEditingPlaylists] = useState(false);
   const [, setLocation] = useLocation();
@@ -47,7 +48,7 @@ const SessionPage = () => {
   }, [playlists]);
 
   const handleSavePlaylists = async () => {
-    if (selectedPlaylists.length === 0) {
+    if (!libraryRestrict && selectedPlaylists.length === 0) {
       setSaveError("At least one playlist must be selected");
       return;
     }
@@ -152,7 +153,7 @@ const SessionPage = () => {
                     variant="contained"
                     size="small"
                     onClick={handleSavePlaylists}
-                    disabled={isSaving || selectedPlaylists.length === 0}
+                    disabled={isSaving || (!libraryRestrict && selectedPlaylists.length === 0)}
                   >
                     {isSaving ? <CircularProgress size={16} /> : "Save"}
                   </Button>

@@ -9,9 +9,9 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Modifications:
-# - Added BrandingHandler for runtime-customizable branding
-# - Added data_dir parameter for per-instance branding support
-# - Added site_title, reboot, manifest, analytics routing
+# - Added library_restrict configuration option
+# - Added collection API endpoints for artist/track browsing
+# - Added config parameter passing to SessionPlaylistsHandler
 
 from __future__ import unicode_literals
 
@@ -47,11 +47,31 @@ def get_http_handlers(core, config, frontend, static_directory_path, data_dir):
         (
             r"/api/session/playlists/?",
             api.SessionPlaylistsHandler,
-            {"core": core, "frontend": frontend},
+            {"core": core, "frontend": frontend, "config": config},
         ),
         (
             r"/api/suggestions/?",
             api.SuggestionsHandler,
+            {"core": core, "frontend": frontend},
+        ),
+        (
+            r"/api/collection/artists/?",
+            api.CollectionArtistsHandler,
+            {"core": core, "frontend": frontend},
+        ),
+        (
+            r"/api/collection/artists/([^/]+)/tracks/?",
+            api.CollectionArtistTracksHandler,
+            {"core": core, "frontend": frontend},
+        ),
+        (
+            r"/api/collection/search/?",
+            api.CollectionSearchHandler,
+            {"core": core, "frontend": frontend},
+        ),
+        (
+            r"/api/collection/index/?",
+            api.CollectionIndexHandler,
             {"core": core, "frontend": frontend},
         ),
         (
@@ -144,6 +164,7 @@ class Extension(ext.Extension):
         schema["queue_limit_per_user"] = config.Integer(optional=True, minimum=0)
         schema["reboot_command"] = config.String(optional=True)
         schema["ws_pong_timeout_ms"] = config.Integer(optional=True, minimum=1000)
+        schema["library_restrict"] = config.Boolean(optional=True)
         return schema
 
     def setup(self, registry):
