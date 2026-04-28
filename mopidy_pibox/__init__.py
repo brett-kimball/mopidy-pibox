@@ -1,3 +1,18 @@
+# Mopidy-Pibox
+# Original work Copyright (c) Gavin Bannerman
+# Modified work Copyright (c) 2026 Brett
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Modifications:
+# - Added BrandingHandler for runtime-customizable branding
+# - Added data_dir parameter for per-instance branding support
+# - Added site_title, reboot, manifest, analytics routing
+
 from __future__ import unicode_literals
 
 import os
@@ -14,7 +29,7 @@ from .routing import ClientRoutingHandler, ClientRoutingWithAnalyticsHandler
 __version__ = pkg_resources.get_distribution("Mopidy-Pibox").version
 
 
-def get_http_handlers(core, config, frontend, static_directory_path):
+def get_http_handlers(core, config, frontend, static_directory_path, data_dir):
     disable_analytics = config.get("pibox").get("disable_analytics", False)
 
     return [
@@ -42,7 +57,7 @@ def get_http_handlers(core, config, frontend, static_directory_path):
         (
             r"/config/?",
             api.ConfigHandler,
-            {"config": config},
+            {"config": config, "frontend": frontend},
         ),
         (
             r"/manifest.json",
@@ -63,6 +78,11 @@ def get_http_handlers(core, config, frontend, static_directory_path):
             r"/api/reboot/?",
             api.RebootHandler,
             {"config": config},
+        ),
+        (
+            r"/branding/(.+\.png)",
+            api.BrandingHandler,
+            {"data_dir": str(data_dir), "static_path": static_directory_path},
         ),
         (
             r"/(.*)",
@@ -91,10 +111,11 @@ def my_app_factory(config, core):
     frontend = actors[0].proxy()
 
     static_directory_path = os.path.join(os.path.dirname(__file__), "static")
+    data_dir = Extension.get_data_dir(config)
 
     return [
         (r"/ws/?", socket.PiboxWebSocket),
-        *get_http_handlers(core, config, frontend, static_directory_path),
+        *get_http_handlers(core, config, frontend, static_directory_path, data_dir),
         (r"/api/reboot/?", api.RebootHandler, {"config": config}),
     ]
 

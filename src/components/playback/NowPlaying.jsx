@@ -23,7 +23,7 @@ const NowPlaying = ({ viewOnly = false }) => {
   const { ref: titleRef, isOverflowing } = useTextOverflow(currentTrack?.name);
 
 
-  if (!currentTrack) return <NothingPlaying viewOnly={viewOnly} showInstructions={false} showQr={false} />;
+  if (!currentTrack) return <NothingPlaying viewOnly={viewOnly} showQr={false} />;
 
   // Get the source for the current track
   const trackSource = session?.trackSources?.[currentTrack.uri];
@@ -53,31 +53,22 @@ const NowPlaying = ({ viewOnly = false }) => {
         <div className="pt-7 basis-auto text-center m-2 max-w-full">
           {viewOnly ? (
             <div 
-              className="overflow-hidden"
+              className={`ticker-container${isOverflowing ? ' ticker-active' : ''}`}
               style={{ 
                 maxWidth: '60vw', 
                 margin: '0 auto',
-                ...(isOverflowing && {
-                  maskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)',
-                }),
+                overflow: 'hidden',
               }}
             >
               <h2 
                 ref={titleRef}
-                className="text-xl font-bold py-1 whitespace-nowrap"
-                style={isOverflowing ? { 
-                  animation: 'ticker 15s linear infinite',
-                  display: 'inline-block',
-                  paddingLeft: '100%',
-                  willChange: 'transform',
-                  backfaceVisibility: 'hidden',
-                } : {
+                className={`text-xl font-bold py-1 whitespace-nowrap${isOverflowing ? ' ticker-animate' : ''}`}
+                style={!isOverflowing ? {
                   textAlign: 'center',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   display: 'block',
-                }}
+                } : undefined}
               >
                 {currentTrack.name}
               </h2>

@@ -283,6 +283,18 @@ h3 {
 .view-nowplaying img {
   animation: liftSlow 12s ease-in-out infinite;
 }
+
+/* Welcome logo: remove album art styling, use drop-shadow filter for transparent PNG */
+.view-nowplaying img.welcome-logo {
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background: none !important;
+  background-color: transparent !important;
+  animation: none !important;
+  transform: none !important;
+  border: none !important;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+}
 .view-tracklist img {
   animation: liftSlow 14s ease-in-out infinite;
 }
@@ -359,9 +371,47 @@ h3 {
     margin: 0.25rem 0 !important;
   }
 
+  /* GPU-optimized ticker container */
+  .ticker-container {
+    position: relative;
+  }
+
+  /* Fade edges only when animating - using pseudo-elements for better perf */
+  .ticker-container.ticker-active::before,
+  .ticker-container.ticker-active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2rem;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .ticker-container.ticker-active::before {
+    left: 0;
+    background: linear-gradient(to right, #033a50, transparent);
+  }
+
+  .ticker-container.ticker-active::after {
+    right: 0;
+    background: linear-gradient(to left, #033a50, transparent);
+  }
+
+  /* GPU-optimized ticker animation using transform only */
+  .ticker-animate {
+    display: inline-block;
+    animation: ticker 10s linear infinite;
+    /* Force GPU layer - use contain for better compositing */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    contain: layout style;
+  }
+
   @keyframes ticker {
     0% {
-      transform: translate3d(0%, 0, 0);
+      transform: translate3d(50%, 0, 0);
     }
     100% {
       transform: translate3d(-100%, 0, 0);

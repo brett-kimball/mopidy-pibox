@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getTimePosition } from "services/mopidy";
 import { useNowPlaying } from "hooks/nowPlaying";
-import burgee from "res/burgee_306.png";
+
+// Progress indicator loaded dynamically from branding endpoint
+const PROGRESS_INDICATOR_URL = "/pibox/branding/progress-indicator.png";
 
 function msToTime(ms) {
   if (ms == null || isNaN(ms)) return "0:00";
@@ -113,13 +115,15 @@ const ProgressBar = ({ pollInterval = 500 }) => {
           </div>
         </div>
 
-        <img
-          ref={burgeeRef}
-          src={burgee}
-          alt="burgee"
-          className="progress-burgee absolute bottom-6"
-          style={{ left: leftPx, transition: playbackState === "playing" ? "left 120ms linear" : "left 200ms ease" }}
-        />
+        {currentTrack && (
+          <img
+            ref={burgeeRef}
+            src={PROGRESS_INDICATOR_URL}
+            alt="progress indicator"
+            className="progress-burgee absolute bottom-6"
+            style={{ left: leftPx, transition: playbackState === "playing" ? "left 120ms linear" : "left 200ms ease" }}
+          />
+        )}
 
         <div className="absolute left-6 right-6 bottom-10 flex justify-between text-sm text-white/90">
           <div>{msToTime(position)}</div>

@@ -1,5 +1,22 @@
+# Mopidy-Pibox
+# Original work Copyright (c) Gavin Bannerman
+# Modified work Copyright (c) 2026 Brett
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Modifications:
+# - Added update_session_playlists() for runtime playlist modification
+# - Added track source attribution for playlist vs user-queued tracks
+# - Added wait-mode: session idles when no playlists are selected
+# - Added safe track_uri extraction to prevent crashes on malformed tracks
+
 import pykka
 import logging
+import time
 from random import sample, shuffle
 
 from mopidy import core
@@ -47,7 +64,10 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
     def start_session(self, skip_threshold, playlists, auto_start, shuffle):
         self.pibox.start_session(skip_threshold, playlists, shuffle)
-        if auto_start:
+
+        if auto_start and len(playlists) > 0:
+            # Only auto-queue and play if playlists were selected
+            # If no playlists, session starts in "wait mode" for user selections
             self.__queue_song_from_session_playlists()
             self.__start_playing()
 
@@ -88,6 +108,12 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         if not self.pibox.started:
             return
 
+        track_uri = None
+        try:
+            track_uri = tl_track.track.uri if tl_track and tl_track.track else None
+        except Exception:
+            pass
+
         # Detect potential playback failure: if time_position is very short
         # (< 2 seconds) and the track has a reasonable length, it likely failed
         # to play (e.g., unavailable on Tidal). However, don't treat quick manual
@@ -101,29 +127,39 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             # Track barely played AND tracklist is empty = automatic failure, not manual skip
             if track_length is None or track_length > 10000:  # track is > 10s or unknown length
                 self.logger.warning(
-                    f"Track {tl_track.track.uri} ended after only {time_position}ms "
+                    f"Track {track_uri} ended after only {time_position}ms "
                     f"(length: {track_length}ms). Treating as playback failure."
                 )
                 is_playback_failure = True
                 # Add to denylist so we don't try it again
                 try:
-                    if tl_track.track.uri not in self.pibox.denylist:
-                        self.pibox.denylist.append(tl_track.track.uri)
-                        self.logger.info(f"Added {tl_track.track.uri} to denylist")
+                    if track_uri and track_uri not in self.pibox.denylist:
+                        self.pibox.denylist.append(track_uri)
+                        self.logger.info(f"Added {track_uri} to denylist")
                 except Exception:
                     pass
 
         # Only mark as played if it wasn't a failure
         if not is_playback_failure:
             self.__update_played_tracks(tl_track)
+        else:
+            # Even for playback failures, we must remove from user queue counts
+            # so they can add new tracks
+            try:
+                self.pibox.remove_queued_track_for_all_users(tl_track.track.uri)
+            except Exception:
+                pass
 
         if self.__should_play_whats_new_pussycat(tl_track):
             self.core.tracklist.add(uris=[self.pussycat_list[0]], at_position=0).get(timeout=MOPIDY_CALL_TIMEOUT)
             self.logger.info("Meow")
             self.__start_playing()
         elif self.core.tracklist.get_length().get(timeout=MOPIDY_CALL_TIMEOUT) == 0:
-            self.__queue_song_from_session_playlists()
-            self.__start_playing()
+            # Only try to queue from playlists if we have playlists configured
+            if len(self.pibox.playlists) > 0:
+                self.__queue_song_from_session_playlists()
+                self.__start_playing()
+            # else: no playlists mode - just wait for users to queue tracks
 
     def track_playback_started(self, tl_track, time_position=None):
         try:
@@ -284,9 +320,18 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         self.__update_remaining_playlist_tracks([ref for (ref, _) in remaining_playlist])
 
         if len(remaining_playlist) == 0:
-            self.logger.info("No more tracks to play")
-            self.end_session()
-            return
+            if len(self.pibox.playlists) == 0:
+                # No playlists selected — idle indefinitely so users can queue manually.
+                self.logger.info(
+                    "No playlists selected; idling until users queue tracks manually"
+                )
+                return
+            else:
+                # Playlists were selected and are now exhausted — end the session
+                # so any user can start a fresh one with new playlists.
+                self.logger.info("No more tracks to play from playlists; ending session")
+                self.end_session()
+                return
 
         # Add the first available track. If it fails to play (e.g., unavailable
         # on Tidal), track_playback_ended will handle it by adding it to the
@@ -358,9 +403,22 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             tracklist_len = self.core.tracklist.get_length().get(timeout=MOPIDY_CALL_TIMEOUT)
             
             if state == core.PlaybackState.STOPPED and tracklist_len == 0:
-                self.logger.warning("Playback failed to start (track may be unavailable). Trying next track.")
+                if len(self.pibox.playlists) == 0:
+                    # No playlists configured — idle, don't retry
+                    self.logger.debug("No playlists configured; not retrying playback")
+                    return
+                self.logger.warning(
+                    "Playback failed to start (track may be unavailable). Trying next track."
+                )
                 self.__queue_song_from_session_playlists()
-                self.__start_playing()
+                # Only recurse if a track was actually queued.
+                # If __queue_song_from_session_playlists idled or all tracks
+                # are denylisted, the tracklist will still be empty — don't loop.
+                new_tracklist_len = self.core.tracklist.get_length().get(
+                    timeout=MOPIDY_CALL_TIMEOUT
+                )
+                if new_tracklist_len > 0:
+                    self.__start_playing()
 
     def __should_play_whats_new_pussycat(self, tl_track):
         tracklist = self.core.tracklist.get_tracks().get(timeout=MOPIDY_CALL_TIMEOUT)

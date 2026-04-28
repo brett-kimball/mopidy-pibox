@@ -61,3 +61,12 @@ tidal-oauth.json
 
 # backups and temporary folders
 OLD/
+ORIG/
+
+# local working files
+recent.log
+recent2.log
+COMMIT_MESSAGE.txt
+
+# archived word lists (venue-specific, not for general distribution)
+scripts/word-lists-archive.txt

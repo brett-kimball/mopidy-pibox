@@ -20,6 +20,7 @@
     "react-dom": "19.2.3",
     "react-hot-toast": "2.6.0",
     "react-qr-code": "2.0.18",
+    "react-qrcode-logo": "^4.0.0",
     "react-spinners": "0.17.0",
     "react-transition-group": "4.4.5",
     "wouter": "3.9.0"

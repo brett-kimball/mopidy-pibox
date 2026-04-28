@@ -99,3 +99,19 @@ Credits
 =======
 
 - Original author: `Gavin Bannerman <https://github.com/gavinbannerman>`_
+
+
+Fork Information
+================
+
+This is a modified fork of the original mopidy-pibox by Gavin Bannerman.
+
+Major additions in this fork include:
+
+- **Library-restricted search mode**: Search only within your Tidal collection (saved tracks, albums, playlists, mixes)
+- **SQLite-based track caching**: Persistent cache with normalized schema for efficient metadata storage
+- **Rate limit protection**: Conservative API call pacing to avoid Tidal rate limits
+- **Source-based metadata fetching**: Fetches full playlist/album metadata in single API calls
+- **Enhanced session management**: Runtime playlist modification, empty playlist support for user-only mode
+- **Track source attribution**: Shows whether tracks came from a playlist or were queued by a user (with fun nautical nicknames)
+- **Play count tracking**: Tracks how often each song is played for better suggestions

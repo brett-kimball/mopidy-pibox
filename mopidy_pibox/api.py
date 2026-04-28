@@ -1,6 +1,22 @@
+# Mopidy-Pibox
+# Original work Copyright (c) Gavin Bannerman
+# Modified work Copyright (c) 2026 Brett
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Modifications:
+# - Added BrandingHandler for runtime-customizable branding images
+# - Added persisted playlist selection fallback in ConfigHandler
+# - Added site_title, reboot_command, ws_pong_timeout_ms config exposure
+
 from __future__ import absolute_import, unicode_literals
 
 import json
+import mimetypes
 
 from mopidy import config
 import socket
@@ -151,9 +167,6 @@ class SessionHandler(PiboxHandler):
 class SessionPlaylistsHandler(PiboxHandler):
     """Handler to update playlists during an active session."""
 
-    def initialize(self, core, frontend):
-        super(SessionPlaylistsHandler, self).initialize(core, frontend)
-
     def post(self):
         """Update the selected playlists for the current session."""
         if not self.frontend.pibox.started.get(timeout=API_CALL_TIMEOUT):
@@ -192,8 +205,9 @@ class SuggestionsHandler(PiboxHandler):
 
 
 class ConfigHandler(tornado.web.RequestHandler):
-    def initialize(self, config: config.Proxy):
+    def initialize(self, config: config.Proxy, frontend):
         self.config = config
+        self.frontend = frontend
         self.logger = logging.getLogger(__name__)
 
     def get(self):
@@ -229,10 +243,22 @@ class ConfigHandler(tornado.web.RequestHandler):
 
             server_address = f"http://{server_ip}:{port}"
 
+        # Get default playlists from config, or fall back to persisted selection
+        default_playlists = list(pibox_config.get("default_playlists") or [])
+        if not default_playlists:
+            # No default_playlists configured - use persisted selection from last session
+            try:
+                persisted = self.frontend.pibox.get_persisted_playlists().get(timeout=API_CALL_TIMEOUT)
+                if persisted:
+                    # Convert to URI list for frontend compatibility
+                    default_playlists = [p.get("uri") for p in persisted if p.get("uri")]
+            except Exception as e:
+                self.logger.debug(f"Failed to get persisted playlists: {e}")
+
         self.write(
             {
                 "offline": pibox_config.get("offline"),
-                "defaultPlaylists": list(pibox_config.get("default_playlists")),
+                "defaultPlaylists": default_playlists,
                 "defaultSkipThreshold": pibox_config.get("default_skip_threshold"),
                 "serverAddress": server_address,
                 "siteTitle": pibox_config.get("site_title") or "pibox",
@@ -293,6 +319,75 @@ class ManifestHandler(tornado.web.RequestHandler):
 
         self.set_header("Content-Type", "application/json")
         self.write(manifest)
+
+
+class BrandingHandler(tornado.web.RequestHandler):
+    """Serve branding images with runtime customization support.
+    
+    Serves images from the custom branding directory if they exist,
+    otherwise falls back to the bundled default images.
+    
+    Custom branding directory: ~/.local/share/mopidy/pibox/branding/
+    
+    Supported images and their expected sizes:
+      - logo.png: 196x196 - Main logo displayed on session page
+      - logo-black.png: 196x196 - Logo for "nothing playing" state
+      - progress-indicator.png: max 512px - Progress bar indicator on /view page
+      - favicon.png: 48x48 - Browser tab icon
+      - apple-touch-icon.png: 180x180 - iOS home screen icon
+      - icon-192.png: 192x192 - PWA manifest icon
+      - icon-512.png: 512x512 - PWA manifest icon (large)
+    
+    Use scripts/update-branding.sh to generate custom images from a source file.
+    """
+    
+    # Allowed branding image names
+    BRANDING_IMAGES = {
+        "logo.png",
+        "logo-black.png",
+        "progress-indicator.png",
+        "favicon.png",
+        "apple-touch-icon.png",
+        "icon-192.png",
+        "icon-512.png",
+    }
+    
+    def initialize(self, data_dir, static_path):
+        self.data_dir = data_dir
+        self.static_path = static_path
+        self.logger = logging.getLogger(__name__)
+    
+    def get(self, image_name):
+        if image_name not in self.BRANDING_IMAGES:
+            self.set_status(404)
+            self.write({"error": f"Unknown branding image: {image_name}"})
+            return
+        
+        # Check for custom branding first (runtime override)
+        custom_path = os.path.join(self.data_dir, "branding", image_name)
+        if os.path.isfile(custom_path):
+            self._serve_file(custom_path)
+            return
+        
+        # Fall back to bundled default in static/branding/
+        default_path = os.path.join(self.static_path, "branding", image_name)
+        if os.path.isfile(default_path):
+            self._serve_file(default_path)
+        else:
+            self.logger.warning(f"Branding image not found: {default_path}")
+            self.set_status(404)
+            self.write({"error": f"Image not found: {image_name}"})
+    
+    def _serve_file(self, path):
+        mime_type, _ = mimetypes.guess_type(path)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+        
+        self.set_header("Content-Type", mime_type)
+        self.set_header("Cache-Control", "public, max-age=3600")  # Cache for 1 hour
+        
+        with open(path, "rb") as f:
+            self.write(f.read())
 
 
 class IndexHandler(tornado.web.RequestHandler):

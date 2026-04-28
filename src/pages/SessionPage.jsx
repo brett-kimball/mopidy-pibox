@@ -8,9 +8,11 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useSessionDetails } from "hooks/session";
 import { usePlaylists } from "hooks/playlists";
 import { useAdmin } from "hooks/admin";
-import logo from "res/logo.png";
 import { useConfig } from "hooks/config";
 import PlaylistSelector from "components/common/PlaylistSelector";
+
+// Logo loaded dynamically from branding endpoint
+const LOGO_URL = "/pibox/branding/logo.png";
 
 const SessionPage = () => {
   const {
@@ -25,7 +27,7 @@ const SessionPage = () => {
     refetchSession,
   } = useSessionDetails();
 
-  const { playlists: availablePlaylists, playlistsLoading } = usePlaylists();
+  const { playlists: availablePlaylists, playlistsLoading, refetchPlaylists } = usePlaylists();
   const { clearAdmin } = useAdmin();
   const { config } = useConfig();
   const offline = config?.offline ?? false;
@@ -74,7 +76,7 @@ const SessionPage = () => {
     <div className="w-full h-full flex flex-col justify-between items-stretch p-2 overflow-y-auto">
       <div className="text-center">
         <h2 className="font-bold text-xl">{siteTitle}</h2>
-        <img className="w-[70px] h-auto mx-auto my-2" alt="logo" src={logo} />
+        <img className="w-[70px] h-auto mx-auto my-2" alt="logo" src={LOGO_URL} />
       </div>
       <div>
         <div className="flex justify-between items-start w-full p-2 min-h-16 border-b border-gray-200">
@@ -83,7 +85,10 @@ const SessionPage = () => {
             {!offline && !isEditingPlaylists && (
               <IconButton
                 size="small"
-                onClick={() => setIsEditingPlaylists(true)}
+                onClick={() => {
+                  setIsEditingPlaylists(true);
+                  refetchPlaylists();
+                }}
                 title="Edit playlists"
               >
                 <EditIcon fontSize="small" />
