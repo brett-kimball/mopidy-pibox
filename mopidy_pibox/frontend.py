@@ -320,8 +320,8 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         Multi-word queries are joined with spaces for Tidal's search API.
         """
-        import json as _json
         import os as _os
+        import pathlib as _pathlib
 
         q = query.strip()
         if not q:
@@ -341,7 +341,7 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         try:
             session = tidalapi.Session()
-            session.login_session_file(token_path)
+            session.login_session_file(_pathlib.Path(token_path))
         except Exception as e:
             self.logger.warning(f"Could not load Tidal session for playlist search: {e}")
             return []
