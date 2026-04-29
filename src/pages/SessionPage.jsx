@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { endSession, rebootSystem, updateSessionPlaylists } from "services/mopidy";
-import { Button, IconButton, Collapse, CircularProgress } from "@mui/material";
+import {
+  Button, IconButton, Collapse, CircularProgress,
+  TextField, Typography, List, ListItem, ListItemText, ListItemSecondaryAction,
+} from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import AddIcon from "@mui/icons-material/Add";
+import SearchIcon from "@mui/icons-material/Search";
 import { useSessionDetails } from "hooks/session";
-import { usePlaylists } from "hooks/playlists";
+import { usePlaylists, usePlaylistSearch } from "hooks/playlists";
 import { useAdmin } from "hooks/admin";
 import { useConfig } from "hooks/config";
 import PlaylistSelector from "components/common/PlaylistSelector";
@@ -39,6 +44,25 @@ const SessionPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  // Tidal playlist search state (for the editor panel)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { searchResults, searchLoading } = usePlaylistSearch(submittedQuery, searchOpen);
+
+  const handleSearchSubmit = () => {
+    const normalised = searchQuery.trim().replace(/[\s+]+/g, " ").trim();
+    if (!normalised) return;
+    setSubmittedQuery(normalised);
+    setSearchOpen(true);
+  };
+
+  const handleAddSearchResult = (playlist) => {
+    if (!selectedPlaylists.some((p) => p.uri === playlist.uri)) {
+      setSelectedPlaylists([...selectedPlaylists, playlist]);
+    }
+  };
+
   // Sync selectedPlaylists when session playlists change
   useEffect(() => {
     if (playlists) {
@@ -70,6 +94,9 @@ const SessionPage = () => {
     setSelectedPlaylists(playlists || []);
     setIsEditingPlaylists(false);
     setSaveError(null);
+    setSearchQuery("");
+    setSubmittedQuery("");
+    setSearchOpen(false);
   };
 
   return (
@@ -134,11 +161,72 @@ const SessionPage = () => {
                   label="Select Playlists"
                   disabled={isSaving}
                 />
-                
+
+                {/* Tidal playlist search */}
+                {!offline && (
+                  <div className="mt-3">
+                    <div className="flex gap-2 items-center">
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Search Tidal for playlists"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSearchSubmit(); } }}
+                        disabled={isSaving}
+                        InputProps={{
+                          endAdornment: searchLoading ? <CircularProgress size={18} /> : null,
+                        }}
+                      />
+                      <IconButton
+                        onClick={handleSearchSubmit}
+                        disabled={!searchQuery.trim() || searchLoading || isSaving}
+                        color="primary"
+                        size="small"
+                      >
+                        <SearchIcon />
+                      </IconButton>
+                    </div>
+
+                    <Collapse in={searchOpen && submittedQuery.length > 0}>
+                      {searchResults.length === 0 && !searchLoading ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, ml: 0.5 }}>
+                          No playlists found for &ldquo;{submittedQuery}&rdquo;
+                        </Typography>
+                      ) : (
+                        <List dense sx={{ maxHeight: 160, overflowY: "auto", mt: 0.5 }}>
+                          {searchResults.map((playlist) => {
+                            const alreadyAdded = selectedPlaylists.some((p) => p.uri === playlist.uri);
+                            return (
+                              <ListItem key={playlist.uri} disablePadding sx={{ pl: 0.5 }}>
+                                <ListItemText
+                                  primary={playlist.name}
+                                  primaryTypographyProps={{ variant: "body2" }}
+                                />
+                                <ListItemSecondaryAction>
+                                  <IconButton
+                                    edge="end"
+                                    size="small"
+                                    disabled={alreadyAdded || isSaving}
+                                    onClick={() => handleAddSearchResult(playlist)}
+                                    color={alreadyAdded ? "default" : "primary"}
+                                  >
+                                    <AddIcon fontSize="small" />
+                                  </IconButton>
+                                </ListItemSecondaryAction>
+                              </ListItem>
+                            );
+                          })}
+                        </List>
+                      )}
+                    </Collapse>
+                  </div>
+                )}
+
                 {saveError && (
                   <p className="text-red-500 text-sm mt-2">{saveError}</p>
                 )}
-                
+
                 <div className="flex gap-2 mt-3 justify-end">
                   <Button
                     variant="outlined"
@@ -174,6 +262,22 @@ const SessionPage = () => {
           label="Skip Threshold"
           value={<p className="text-right">{skipThreshold}</p>}
         />
+        {config?.queueLimitPerUser > 0 && (
+          <SessionStatistic
+            label="Queue Limit (per user)"
+            value={<p className="text-right">{config.queueLimitPerUser} track{config.queueLimitPerUser !== 1 ? "s" : ""}</p>}
+          />
+        )}
+        {config?.voteLimitCount > 0 && config?.voteLimitMinutes > 0 && (
+          <SessionStatistic
+            label="Vote Rate Limit"
+            value={
+              <p className="text-right">
+                {config.voteLimitCount} vote{config.voteLimitCount !== 1 ? "s" : ""} per {config.voteLimitMinutes} min
+              </p>
+            }
+          />
+        )}
       </div>
       <div className="flex flex-col gap-4 my-10 mx-0 self-center items-center">
         <Button

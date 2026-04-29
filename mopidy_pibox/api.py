@@ -297,6 +297,9 @@ class ConfigHandler(tornado.web.RequestHandler):
                 "siteTitle": pibox_config.get("site_title") or "pibox",
                 "rebootCommand": pibox_config.get("reboot_command", None),
                 "wsPongTimeoutMs": pibox_config.get("ws_pong_timeout_ms") or 4000,
+                "voteLimitCount": pibox_config.get("vote_limit_count", None),
+                "voteLimitMinutes": pibox_config.get("vote_limit_minutes", None),
+                "queueLimitPerUser": pibox_config.get("queue_limit_per_user", None),
             }
         )
 
