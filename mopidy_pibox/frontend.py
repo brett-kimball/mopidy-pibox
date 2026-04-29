@@ -45,6 +45,13 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         data_dir = Extension.get_data_dir(config)
         self.pibox = pykka.traversable(Pibox(data_dir=data_dir))
 
+        # Locate the mopidy-tidal oauth token so we can search playlists directly.
+        try:
+            core_data_dir = config.get("core", {}).get("data_dir", "/var/lib/mopidy")
+            self._tidal_token_path = str(core_data_dir).rstrip("/") + "/tidal/tidal-oauth.json"
+        except Exception:
+            self._tidal_token_path = "/var/lib/mopidy/tidal/tidal-oauth.json"
+
         # apply vote limit config if provided
         try:
             vote_count = self.config.get("vote_limit_count", 2)
@@ -304,59 +311,54 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         return unplayed_tracks
 
-    # Browse roots that expose curated / non-user Tidal playlists.
-    _TIDAL_BROWSE_ROOTS = ["tidal:featured", "tidal:moods", "tidal:genres"]
-
     def search_tidal_playlists(self, query=""):
-        """Return curated Tidal playlists whose names match *query*.
+        """Search Tidal for playlists by keyword using the tidalapi directly.
 
-        Browses a set of known Tidal browse URIs one level deep. Any refs
-        whose type is 'playlist' are collected; refs whose type is a category
-        are browsed one further level to collect the playlists inside them.
-        Results are filtered by the query string (case-insensitive substring
-        match) and returned as a list of {name, uri} dicts.
+        Uses the same oauth session that mopidy-tidal maintains so no extra
+        credentials are needed. Results are returned as {name, uri} dicts
+        compatible with the existing PlaylistSelector / session start flows.
 
-        When *query* is empty all discovered playlists are returned so the
-        frontend can present a full browseable list.
+        Multi-word queries are joined with spaces for Tidal's search API.
         """
-        q = query.strip().lower()
-        seen_uris = set()
-        results = []
+        import json as _json
+        import os as _os
 
-        def _collect(refs):
-            for ref in (refs or []):
-                if ref.uri in seen_uris:
-                    continue
-                ref_type = str(getattr(ref, "type", "")).lower()
-                if ref_type == "playlist":
-                    seen_uris.add(ref.uri)
-                    name = ref.name or ""
-                    if not q or q in name.lower():
-                        results.append({"name": name, "uri": ref.uri})
-                elif ref_type in ("directory", ""):
-                    # One level deeper for category nodes
-                    try:
-                        sub = self.core.library.browse(uri=ref.uri).get(timeout=MOPIDY_CALL_TIMEOUT)
-                        for sub_ref in (sub or []):
-                            if sub_ref.uri in seen_uris:
-                                continue
-                            sub_type = str(getattr(sub_ref, "type", "")).lower()
-                            if sub_type == "playlist":
-                                seen_uris.add(sub_ref.uri)
-                                name = sub_ref.name or ""
-                                if not q or q in name.lower():
-                                    results.append({"name": name, "uri": sub_ref.uri})
-                    except Exception:
-                        pass
+        q = query.strip()
+        if not q:
+            return []
 
-        for root_uri in self._TIDAL_BROWSE_ROOTS:
-            try:
-                refs = self.core.library.browse(uri=root_uri).get(timeout=MOPIDY_CALL_TIMEOUT)
-                _collect(refs)
-            except Exception as e:
-                self.logger.debug(f"Could not browse {root_uri}: {e}")
+        try:
+            import tidalapi
+        except ImportError:
+            self.logger.warning("tidalapi not available; cannot search playlists")
+            return []
 
-        return results
+        # Load the session from the token file that mopidy-tidal maintains.
+        token_path = self._tidal_token_path
+        if not _os.path.isfile(token_path):
+            self.logger.warning(f"Tidal token file not found at {token_path}")
+            return []
+
+        try:
+            session = tidalapi.Session()
+            session.login_session_file(token_path)
+        except Exception as e:
+            self.logger.warning(f"Could not load Tidal session for playlist search: {e}")
+            return []
+
+        try:
+            # Normalise spaces the same way track search does
+            search_term = q.replace("+", " ")
+            raw = session.search(search_term, models=[tidalapi.Playlist], limit=25)
+            playlists = raw.get("playlists") or []
+            return [
+                {"name": pl.name, "uri": f"tidal:playlist:{pl.id}"}
+                for pl in playlists
+                if pl.name
+            ]
+        except Exception as e:
+            self.logger.warning(f"Tidal playlist search failed: {e}")
+            return []
 
     def __queue_song_from_session_playlists(self):
         self.logger.info("Pibox is trying to queue a song")

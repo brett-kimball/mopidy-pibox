@@ -144,8 +144,10 @@ function NewSessionForm({
   const { searchResults, searchLoading } = usePlaylistSearch(submittedQuery, searchOpen);
 
   const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setSubmittedQuery(searchQuery);
+    if (e) e.preventDefault();
+    // Normalise spaces the same way track search does
+    const normalised = searchQuery.trim().replace(/[\s+]+/g, " ").trim();
+    setSubmittedQuery(normalised);
     setSearchOpen(true);
   };
 
@@ -197,7 +199,7 @@ function NewSessionForm({
             label="Search Tidal for playlists"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setSubmittedQuery(searchQuery); setSearchOpen(true); } }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSearchSubmit(); } }}
             InputProps={{
               endAdornment: searchLoading ? <CircularProgress size={18} /> : null,
             }}
