@@ -47,10 +47,11 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         # Locate the mopidy-tidal oauth token so we can search playlists directly.
         try:
-            core_data_dir = config.get("core", {}).get("data_dir", "/var/lib/mopidy")
-            self._tidal_token_path = str(core_data_dir).rstrip("/") + "/tidal/tidal-oauth.json"
+            import pathlib as _pathlib
+            core_data_dir = _pathlib.Path(config["core"]["data_dir"])
+            self._tidal_token_path = core_data_dir / "tidal" / "tidal-oauth.json"
         except Exception:
-            self._tidal_token_path = "/var/lib/mopidy/tidal/tidal-oauth.json"
+            self._tidal_token_path = _pathlib.Path("/var/lib/mopidy/tidal/tidal-oauth.json")
 
         # apply vote limit config if provided
         try:
@@ -320,8 +321,6 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         Multi-word queries are joined with spaces for Tidal's search API.
         """
-        import pathlib as _pathlib
-
         q = query.strip()
         if not q:
             return []
@@ -332,7 +331,7 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             self.logger.warning("tidalapi not available; cannot search playlists")
             return []
 
-        token_path = _pathlib.Path(self._tidal_token_path)
+        token_path = self._tidal_token_path
         session = tidalapi.Session()
         if not session.load_session_from_file(token_path):
             self.logger.warning(f"Could not load Tidal session from {token_path}")
