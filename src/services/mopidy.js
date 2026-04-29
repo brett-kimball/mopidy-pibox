@@ -353,9 +353,7 @@ export const getPlaylistsAndMixes = async () => {
  */
 export const searchTidalPlaylists = async (query = "") => {
   try {
-    const result = await pibox.get("/api/playlists/search", {
-      params: { q: query },
-    });
+    const result = await pibox.get(`/api/playlists/search?q=${encodeURIComponent(query)}`);
     return result.data || [];
   } catch (e) {
     console.error("Could not search Tidal playlists:", e);
