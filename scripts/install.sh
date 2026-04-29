@@ -64,13 +64,25 @@ fi
 echo "Prerequisites: mopidy, pykka, python3-gi all present. OK."
 echo ""
 
-# ---- Ensure build-time system deps for compiled wheels ------------------
-echo "Checking system build dependencies (libcairo2-dev)..."
-if ! dpkg -s libcairo2-dev &>/dev/null; then
-    echo "  Installing libcairo2-dev via apt..."
-    apt-get install -y libcairo2-dev
+# ---- Ensure required system packages ------------------------------------
+echo "Checking required system packages..."
+REQUIRED_PKGS=(
+    libcairo2-dev                  # build dep for pycairo (mopidy-tidal)
+    gstreamer1.0-plugins-bad       # AAC/MP4A decoder for Tidal streams
+    gstreamer1.0-libav             # additional codec support
+)
+MISSING=()
+for pkg in "${REQUIRED_PKGS[@]}"; do
+    pkg_name="${pkg%%[[:space:]]*}"  # strip inline comments
+    if ! dpkg -s "$pkg_name" &>/dev/null; then
+        MISSING+=("$pkg_name")
+    fi
+done
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+    echo "  Installing: ${MISSING[*]}"
+    apt-get install -y "${MISSING[@]}"
 else
-    echo "  libcairo2-dev already installed. OK."
+    echo "  All required system packages present. OK."
 fi
 echo ""
 
@@ -89,9 +101,9 @@ PIP="$VENV/bin/pip"
 # ---- Install / upgrade mopidy-tidal -------------------------------------
 echo "Installing mopidy-tidal from brett-kimball fork..."
 if [[ "$REINSTALL" == "true" ]]; then
-    "$PIP" install --force-reinstall "git+${TIDAL_REPO}"
+    "$PIP" install --force-reinstall --no-deps "git+${TIDAL_REPO}"
 else
-    "$PIP" install "git+${TIDAL_REPO}"
+    "$PIP" install --no-deps "git+${TIDAL_REPO}"
 fi
 TIDAL_VER=$("$VENV/bin/python" -c "import mopidy_tidal; print(mopidy_tidal.__version__)" 2>/dev/null || echo "unknown")
 echo "  mopidy-tidal installed: $TIDAL_VER"
@@ -100,9 +112,9 @@ echo ""
 # ---- Install / upgrade mopidy-pibox -------------------------------------
 echo "Installing mopidy-pibox from brett-kimball fork..."
 if [[ "$REINSTALL" == "true" ]]; then
-    "$PIP" install --force-reinstall "git+${PIBOX_REPO}"
+    "$PIP" install --force-reinstall --no-deps "git+${PIBOX_REPO}"
 else
-    "$PIP" install "git+${PIBOX_REPO}"
+    "$PIP" install --no-deps "git+${PIBOX_REPO}"
 fi
 PIBOX_VER=$("$VENV/bin/python" -c "import pkg_resources; print(pkg_resources.get_distribution('Mopidy-Pibox').version)" 2>/dev/null || echo "unknown")
 echo "  mopidy-pibox installed: $PIBOX_VER"
