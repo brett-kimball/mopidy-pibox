@@ -64,6 +64,16 @@ fi
 echo "Prerequisites: mopidy, pykka, python3-gi all present. OK."
 echo ""
 
+# ---- Ensure build-time system deps for compiled wheels ------------------
+echo "Checking system build dependencies (libcairo2-dev)..."
+if ! dpkg -s libcairo2-dev &>/dev/null; then
+    echo "  Installing libcairo2-dev via apt..."
+    apt-get install -y libcairo2-dev
+else
+    echo "  libcairo2-dev already installed. OK."
+fi
+echo ""
+
 # ---- Create or reuse venv -----------------------------------------------
 if [[ ! -d "$VENV" ]]; then
     echo "Creating venv at $VENV (with --system-site-packages)..."
