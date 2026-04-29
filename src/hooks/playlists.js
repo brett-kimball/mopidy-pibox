@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getPlaylistsAndMixes, searchTidalPlaylists } from "services/mopidy";
 
 export const usePlaylists = () => {
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["playlists"],
     queryFn: getPlaylistsAndMixes,
     staleTime: 60_000,
@@ -14,7 +14,8 @@ export const usePlaylists = () => {
 
   return {
     playlists: data,
-    playlistsLoading: isLoading,
+    // treat as loading until we have at least something
+    playlistsLoading: isLoading || (isFetching && (!data || data.length === 0)),
     error,
     refetchPlaylists: refetch,
   };

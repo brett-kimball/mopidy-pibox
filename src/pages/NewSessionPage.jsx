@@ -36,7 +36,7 @@ const NewSessionPage = ({ onStartSessionClick }) => {
     );
   }
 
-  if (playlistsLoading || !playlists) {
+  if (playlistsLoading) {
     return <LoadingScreen />;
   }
 

@@ -415,8 +415,19 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         else:
             result = []
             for playlist in self.pibox.playlists:
-                tracks = self.core.playlists.get_items(playlist["uri"]).get(timeout=MOPIDY_CALL_TIMEOUT)
-                for track in tracks:
+                # Try playlists.get_items first (works for liked/cached playlists).
+                # Fall back to library.browse for non-liked playlists found via search.
+                tracks = None
+                try:
+                    tracks = self.core.playlists.get_items(playlist["uri"]).get(timeout=MOPIDY_CALL_TIMEOUT)
+                except Exception:
+                    pass
+                if not tracks:
+                    try:
+                        tracks = self.core.library.browse(uri=playlist["uri"]).get(timeout=MOPIDY_CALL_TIMEOUT)
+                    except Exception:
+                        pass
+                for track in (tracks or []):
                     result.append((track, playlist["name"]))
             return result
 
