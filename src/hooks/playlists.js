@@ -2,20 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { getPlaylistsAndMixes, searchTidalPlaylists } from "services/mopidy";
 
 export const usePlaylists = () => {
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["playlists"],
     queryFn: getPlaylistsAndMixes,
     staleTime: 60_000,
     // Tidal loads playlists asynchronously at startup — poll every 3s until
-    // we get at least one result, then stop.
+    // we get at least one result, then stop. Background refetches do NOT
+    // affect isLoading so the page won't remount.
     refetchInterval: (query) =>
       !query.state.data || query.state.data.length === 0 ? 3000 : false,
   });
 
   return {
-    playlists: data,
-    // treat as loading until we have at least something
-    playlistsLoading: isLoading || (isFetching && (!data || data.length === 0)),
+    playlists: data || [],
+    playlistsLoading: isLoading,
     error,
     refetchPlaylists: refetch,
   };
