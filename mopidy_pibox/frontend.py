@@ -320,7 +320,6 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         Multi-word queries are joined with spaces for Tidal's search API.
         """
-        import os as _os
         import pathlib as _pathlib
 
         q = query.strip()
@@ -333,36 +332,14 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             self.logger.warning("tidalapi not available; cannot search playlists")
             return []
 
-        # Load the session from the token file that mopidy-tidal maintains.
-        token_path = self._tidal_token_path
-        if not _os.path.isfile(token_path):
-            self.logger.warning(f"Tidal token file not found at {token_path}")
+        token_path = _pathlib.Path(self._tidal_token_path)
+        session = tidalapi.Session()
+        if not session.load_session_from_file(token_path):
+            self.logger.warning(f"Could not load Tidal session from {token_path}")
             return []
 
         try:
-            import json as _json
-
-            def _unwrap(v):
-                return v["data"] if isinstance(v, dict) and "data" in v else v
-
-            token_data = _json.loads(_pathlib.Path(token_path).read_text())
-            session = tidalapi.Session()
-            ok = session.load_oauth_session(
-                token_type=_unwrap(token_data["token_type"]),
-                access_token=_unwrap(token_data["access_token"]),
-                refresh_token=_unwrap(token_data.get("refresh_token")),
-                is_pkce=_unwrap(token_data.get("is_pkce", False)),
-            )
-            if not ok:
-                self.logger.warning("Tidal session load returned False for playlist search")
-                return []
-        except Exception as e:
-            self.logger.warning(f"Could not load Tidal session for playlist search: {e}")
-            return []
-
-        try:
-            search_term = q.replace("+", " ")
-            raw = session.search(search_term, models=[tidalapi.Playlist], limit=25)
+            raw = session.search(q, models=[tidalapi.Playlist], limit=25)
             playlists = raw.get("playlists") or []
             return [
                 {"name": pl.name, "uri": f"tidal:playlist:{pl.id}"}
