@@ -220,6 +220,14 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         except Exception:
             pass
 
+        # If nothing is currently playing, start playback now
+        try:
+            state = self.core.playback.get_state().get(timeout=MOPIDY_CALL_TIMEOUT)
+            if state != "playing":
+                self.__start_playing()
+        except Exception:
+            pass
+
         return (True, None)
 
     def remove_user_added_track(self, user_fingerprint, track_uri):
