@@ -304,6 +304,60 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         return unplayed_tracks
 
+    # Browse roots that expose curated / non-user Tidal playlists.
+    _TIDAL_BROWSE_ROOTS = ["tidal:featured", "tidal:moods", "tidal:genres"]
+
+    def search_tidal_playlists(self, query=""):
+        """Return curated Tidal playlists whose names match *query*.
+
+        Browses a set of known Tidal browse URIs one level deep. Any refs
+        whose type is 'playlist' are collected; refs whose type is a category
+        are browsed one further level to collect the playlists inside them.
+        Results are filtered by the query string (case-insensitive substring
+        match) and returned as a list of {name, uri} dicts.
+
+        When *query* is empty all discovered playlists are returned so the
+        frontend can present a full browseable list.
+        """
+        q = query.strip().lower()
+        seen_uris = set()
+        results = []
+
+        def _collect(refs):
+            for ref in (refs or []):
+                if ref.uri in seen_uris:
+                    continue
+                ref_type = str(getattr(ref, "type", "")).lower()
+                if ref_type == "playlist":
+                    seen_uris.add(ref.uri)
+                    name = ref.name or ""
+                    if not q or q in name.lower():
+                        results.append({"name": name, "uri": ref.uri})
+                elif ref_type in ("directory", ""):
+                    # One level deeper for category nodes
+                    try:
+                        sub = self.core.library.browse(uri=ref.uri).get(timeout=MOPIDY_CALL_TIMEOUT)
+                        for sub_ref in (sub or []):
+                            if sub_ref.uri in seen_uris:
+                                continue
+                            sub_type = str(getattr(sub_ref, "type", "")).lower()
+                            if sub_type == "playlist":
+                                seen_uris.add(sub_ref.uri)
+                                name = sub_ref.name or ""
+                                if not q or q in name.lower():
+                                    results.append({"name": name, "uri": sub_ref.uri})
+                    except Exception:
+                        pass
+
+        for root_uri in self._TIDAL_BROWSE_ROOTS:
+            try:
+                refs = self.core.library.browse(uri=root_uri).get(timeout=MOPIDY_CALL_TIMEOUT)
+                _collect(refs)
+            except Exception as e:
+                self.logger.debug(f"Could not browse {root_uri}: {e}")
+
+        return results
+
     def __queue_song_from_session_playlists(self):
         self.logger.info("Pibox is trying to queue a song")
 

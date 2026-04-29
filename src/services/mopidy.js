@@ -344,6 +344,25 @@ export const getPlaylistsAndMixes = async () => {
   return [...(playlists || []), ...(mixes || [])];
 };
 
+/**
+ * Search Tidal for playlists beyond the user's liked/followed ones.
+ * Queries the pibox backend which browses Tidal's featured/mood/genre
+ * categories and returns {name, uri} objects matching the query.
+ * @param {string} query - search string (empty = return all found playlists)
+ * @returns {Promise<Array<{name: string, uri: string}>>}
+ */
+export const searchTidalPlaylists = async (query = "") => {
+  try {
+    const result = await pibox.get("/api/playlists/search", {
+      params: { q: query },
+    });
+    return result.data || [];
+  } catch (e) {
+    console.error("Could not search Tidal playlists:", e);
+    return [];
+  }
+};
+
 export const queueTrack = async (selectedTrack) => {
   const result = await pibox.post("/api/tracklist", {
     track: selectedTrack.uri,

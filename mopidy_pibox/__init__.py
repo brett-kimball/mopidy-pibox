@@ -55,6 +55,11 @@ def get_http_handlers(core, config, frontend, static_directory_path, data_dir):
             {"core": core, "frontend": frontend},
         ),
         (
+            r"/api/playlists/search/?",
+            api.PlaylistSearchHandler,
+            {"core": core, "frontend": frontend},
+        ),
+        (
             r"/config/?",
             api.ConfigHandler,
             {"config": config, "frontend": frontend},

@@ -204,6 +204,39 @@ class SuggestionsHandler(PiboxHandler):
         self.write(json.dumps({"suggestions": suggestions}, cls=ModelJSONEncoder))
 
 
+class PlaylistSearchHandler(PiboxHandler):
+    """Search for Tidal playlists (not limited to liked/followed playlists).
+
+    GET /api/playlists/search?q=<query>
+
+    Browses Tidal's featured and curated playlist categories and returns
+    any whose names contain the query string (case-insensitive).  When
+    query is empty or omitted, all discovered playlists are returned so
+    the frontend can show a browseable list.
+
+    Returns a JSON array of {name, uri} objects – the same shape as
+    entries from mopidy.playlists.asList(), so they work directly with
+    the existing PlaylistSelector component and session start/update
+    flows without any further conversion.
+    """
+
+    # Top-level Tidal browse URIs that expose curated/non-user playlists.
+    # Each is browsed one level deep; refs of type 'playlist' are collected.
+    TIDAL_BROWSE_ROOTS = [
+        "tidal:featured",
+        "tidal:moods",
+        "tidal:genres",
+    ]
+
+    def get(self):
+        query = self.get_argument("q", "").strip().lower()
+
+        results = self.frontend.search_tidal_playlists(query).get(timeout=API_CALL_TIMEOUT)
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(results))
+
+
 class ConfigHandler(tornado.web.RequestHandler):
     def initialize(self, config: config.Proxy, frontend):
         self.config = config

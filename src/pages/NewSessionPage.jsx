@@ -4,9 +4,19 @@ import {
   Button,
   Checkbox,
   FormControlLabel,
+  CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  IconButton,
+  Typography,
+  Collapse,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import SearchIcon from "@mui/icons-material/Search";
 import { useConfig } from "hooks/config";
-import { usePlaylists } from "hooks/playlists";
+import { usePlaylists, usePlaylistSearch } from "hooks/playlists";
 import { LoadingScreen } from "components/common/LoadingScreen";
 import PlaylistSelector from "components/common/PlaylistSelector";
 
@@ -127,6 +137,24 @@ function NewSessionForm({
   const [enableShuffle, setEnableShuffle] = useState(true);
   const [selectedPlaylists, setSelectedPlaylists] = useState(initialPlaylists);
 
+  // Tidal playlist search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { searchResults, searchLoading } = usePlaylistSearch(submittedQuery, searchOpen);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setSubmittedQuery(searchQuery);
+    setSearchOpen(true);
+  };
+
+  const handleAddSearchResult = (playlist) => {
+    if (!selectedPlaylists.some((p) => p.uri === playlist.uri)) {
+      setSelectedPlaylists([...selectedPlaylists, playlist]);
+    }
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit({
@@ -159,6 +187,64 @@ function NewSessionForm({
         onChange={setSelectedPlaylists}
         label="Playlists"
       />
+
+      {/* Tidal playlist search */}
+      <div className="w-full">
+        <div className="flex gap-2 items-center">
+          <TextField
+            fullWidth
+            size="small"
+            label="Search Tidal for playlists"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setSubmittedQuery(searchQuery); setSearchOpen(true); } }}
+            InputProps={{
+              endAdornment: searchLoading ? <CircularProgress size={18} /> : null,
+            }}
+          />
+          <IconButton
+            onClick={handleSearchSubmit}
+            disabled={!searchQuery.trim() || searchLoading}
+            color="primary"
+            size="small"
+          >
+            <SearchIcon />
+          </IconButton>
+        </div>
+
+        <Collapse in={searchOpen && submittedQuery.length > 0}>
+          {searchResults.length === 0 && !searchLoading ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, ml: 0.5 }}>
+              No playlists found for &ldquo;{submittedQuery}&rdquo;
+            </Typography>
+          ) : (
+            <List dense sx={{ maxHeight: 200, overflowY: "auto", mt: 0.5 }}>
+              {searchResults.map((playlist) => {
+                const alreadyAdded = selectedPlaylists.some((p) => p.uri === playlist.uri);
+                return (
+                  <ListItem key={playlist.uri} disablePadding sx={{ pl: 0.5 }}>
+                    <ListItemText
+                      primary={playlist.name}
+                      primaryTypographyProps={{ variant: "body2" }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        size="small"
+                        disabled={alreadyAdded}
+                        onClick={() => handleAddSearchResult(playlist)}
+                        color={alreadyAdded ? "default" : "primary"}
+                      >
+                        <AddIcon fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                );
+              })}
+            </List>
+          )}
+        </Collapse>
+      </div>
 
       <FormControlLabel
         control={
