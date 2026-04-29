@@ -189,7 +189,7 @@ function NewSessionForm({
       <Button
         type="submit"
         variant="contained"
-        disabled={!votesToSkip || !selectedPlaylists.length}
+        disabled={!votesToSkip}
         color="primary"
       >
         Start
