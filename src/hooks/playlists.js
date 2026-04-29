@@ -6,6 +6,10 @@ export const usePlaylists = () => {
     queryKey: ["playlists"],
     queryFn: getPlaylistsAndMixes,
     staleTime: 60_000,
+    // Tidal loads playlists asynchronously at startup — poll every 3s until
+    // we get at least one result, then stop.
+    refetchInterval: (query) =>
+      !query.state.data || query.state.data.length === 0 ? 3000 : false,
   });
 
   return {
