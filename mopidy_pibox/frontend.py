@@ -340,14 +340,27 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             return []
 
         try:
+            import json as _json
+
+            def _unwrap(v):
+                return v["data"] if isinstance(v, dict) and "data" in v else v
+
+            token_data = _json.loads(_pathlib.Path(token_path).read_text())
             session = tidalapi.Session()
-            session.login_session_file(_pathlib.Path(token_path))
+            ok = session.load_oauth_session(
+                token_type=_unwrap(token_data["token_type"]),
+                access_token=_unwrap(token_data["access_token"]),
+                refresh_token=_unwrap(token_data.get("refresh_token")),
+                is_pkce=_unwrap(token_data.get("is_pkce", False)),
+            )
+            if not ok:
+                self.logger.warning("Tidal session load returned False for playlist search")
+                return []
         except Exception as e:
             self.logger.warning(f"Could not load Tidal session for playlist search: {e}")
             return []
 
         try:
-            # Normalise spaces the same way track search does
             search_term = q.replace("+", " ")
             raw = session.search(search_term, models=[tidalapi.Playlist], limit=25)
             playlists = raw.get("playlists") or []
