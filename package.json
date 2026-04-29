@@ -28,6 +28,7 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
+    "deploy": "vite build && rm -rf mopidy_pibox/static/* && cp -r build/* mopidy_pibox/static/ && rm -rf dist/ && pip wheel . --no-deps -w dist/ && mkdir -p wheels && rm -f wheels/*.whl && cp dist/mopidy_pibox-*.whl wheels/ && basename dist/mopidy_pibox-*.whl > wheels/LATEST && rm -rf dist/ && git add -A wheels/",
     "serve": "vite preview",
     "lint": "eslint src",
     "prepare-patch": "./bump_version.sh patch"

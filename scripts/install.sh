@@ -23,7 +23,8 @@
 set -euo pipefail
 
 VENV=/opt/mopidy-plugins
-PIBOX_REPO="https://github.com/brett-kimball/mopidy-pibox.git"
+PIBOX_REPO_RAW="https://raw.githubusercontent.com/brett-kimball/mopidy-pibox/main"
+PIBOX_WHEELS_URL="${PIBOX_REPO_RAW}/wheels"
 TIDAL_REPO="https://github.com/brett-kimball/mopidy-tidal.git"
 
 # Resolve flags
@@ -110,11 +111,14 @@ echo "  mopidy-tidal installed: $TIDAL_VER"
 echo ""
 
 # ---- Install / upgrade mopidy-pibox -------------------------------------
-echo "Installing mopidy-pibox from brett-kimball fork..."
+echo "Installing mopidy-pibox from pre-built wheel..."
+PIBOX_WHEEL=$(curl -fsSL "${PIBOX_WHEELS_URL}/LATEST")
+PIBOX_WHEEL_URL="${PIBOX_WHEELS_URL}/${PIBOX_WHEEL}"
+echo "  Wheel: ${PIBOX_WHEEL}"
 if [[ "$REINSTALL" == "true" ]]; then
-    "$PIP" install --force-reinstall --no-deps "git+${PIBOX_REPO}"
+    "$PIP" install --force-reinstall --no-deps "${PIBOX_WHEEL_URL}"
 else
-    "$PIP" install --no-deps "git+${PIBOX_REPO}"
+    "$PIP" install --no-deps "${PIBOX_WHEEL_URL}"
 fi
 PIBOX_VER=$("$VENV/bin/python" -c "import pkg_resources; print(pkg_resources.get_distribution('Mopidy-Pibox').version)" 2>/dev/null || echo "unknown")
 echo "  mopidy-pibox installed: $PIBOX_VER"
