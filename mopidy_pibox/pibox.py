@@ -110,7 +110,7 @@ class Pibox:
         # prune timestamps outside window
         timestamps = [t for t in timestamps if now - t <= window]
 
-        if len(timestamps) >= self.vote_limit_count:
+        if self.vote_limit_count and len(timestamps) >= self.vote_limit_count:
             # indicate rate limit exceeded and include seconds until next allowed vote
             # earliest timestamp will be the one that falls out of the window first
             earliest = min(timestamps)
@@ -344,7 +344,7 @@ class Pibox:
         # prune timestamps outside window
         timestamps = [t for t in timestamps if now - t <= window]
 
-        if len(timestamps) < self.vote_limit_count:
+        if not self.vote_limit_count or len(timestamps) < self.vote_limit_count:
             return 0
 
         earliest = min(timestamps)
