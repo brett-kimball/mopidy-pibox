@@ -1,23 +1,18 @@
 #!/bin/bash
 # =============================================================================
-# install.sh — Install mopidy-pibox and mopidy-tidal on a host that already
-# has Mopidy installed system-wide via APT.
+# install.sh -- Bootstrap mopidy-pibox and mopidy-tidal on a fresh Debian host.
+#
+# Handles full bootstrap (adds mopidy APT repo, installs mopidy via APT) or
+# upgrading an existing install. Tested on Debian Bookworm and Trixie (arm64).
 #
 # Strategy: create a Python venv at /opt/mopidy-plugins with --system-site-packages
 # so it inherits APT-managed packages (mopidy, pykka, python3-gi) and installs
 # our plugins into the venv without touching system packages.
 #
-# After install, update each Mopidy systemd unit's ExecStart to use the venv's
-# mopidy binary, or set PYTHONPATH — see the note at the bottom.
-#
 # Usage:
 #   sudo ./install.sh               # install / upgrade
 #   sudo ./install.sh --reinstall   # force reinstall both packages
 #
-# Requirements:
-#   - mopidy installed via APT (provides mopidy, pykka, python3-gi)
-#   - python3-venv available (sudo apt install python3-venv)
-#   - git available
 # =============================================================================
 
 set -euo pipefail
@@ -33,8 +28,7 @@ for arg in "$@"; do
     [[ "$arg" == "--reinstall" ]] && REINSTALL=true
 done
 
-# Must run as root so the venv is writable by root; plugin files
-# will be readable by the mopidy user.
+# Must run as root
 if [[ $EUID -ne 0 ]]; then
     echo "ERROR: run as root: sudo $0 $*"
     exit 1
@@ -43,40 +37,61 @@ fi
 echo "=== mopidy-pibox / mopidy-tidal installer ==="
 echo ""
 
-# ---- Verify prerequisites ------------------------------------------------
+# ---- Bootstrap mopidy via APT if not already present --------------------
 if ! python3 -c "import mopidy" 2>/dev/null; then
-    echo "ERROR: mopidy is not importable from system Python."
-    echo "Install it first: sudo apt install mopidy"
-    exit 1
+    echo "Mopidy not found -- adding mopidy APT repo and installing..."
+
+    apt-get install -y --no-install-recommends \
+        curl gnupg2 apt-transport-https ca-certificates \
+        python3-venv python3-gi git lsb-release
+
+    # Add mopidy GPG key
+    curl -fsSL https://apt.mopidy.com/mopidy.gpg \
+        | gpg --dearmor -o /etc/apt/trusted.gpg.d/mopidy.gpg
+
+    # Detect codename; fall back to bookworm if trixie not in repo yet
+    CODENAME=$(lsb_release -sc 2>/dev/null || echo "bookworm")
+    if ! curl -fsSL "https://apt.mopidy.com/mopidy.list" 2>/dev/null | grep -q "$CODENAME"; then
+        echo "  Codename '$CODENAME' not found in mopidy repo -- using bookworm packages (compatible)"
+        CODENAME="bookworm"
+    fi
+
+    echo "deb https://apt.mopidy.com/ ${CODENAME} main" \
+        > /etc/apt/sources.list.d/mopidy.list
+
+    apt-get update -qq
+    apt-get install -y mopidy python3-pykka python3-gi
+    echo "  Mopidy installed via APT."
+    echo ""
+else
+    echo "Mopidy already installed. OK."
+    echo ""
 fi
 
-if ! python3 -c "import pykka" 2>/dev/null; then
-    echo "ERROR: pykka is not importable from system Python."
-    echo "Install it first: sudo apt install python3-pykka"
-    exit 1
-fi
-
-if ! python3 -c "import gi" 2>/dev/null; then
-    echo "ERROR: PyGObject (python3-gi) is not importable from system Python."
-    echo "Install it first: sudo apt install python3-gi"
-    exit 1
-fi
-
+# ---- Verify prerequisites -----------------------------------------------
+for mod in mopidy pykka gi; do
+    if ! python3 -c "import $mod" 2>/dev/null; then
+        echo "ERROR: python3 cannot import '$mod'. Check your APT install."
+        exit 1
+    fi
+done
 echo "Prerequisites: mopidy, pykka, python3-gi all present. OK."
 echo ""
 
 # ---- Ensure required system packages ------------------------------------
 echo "Checking required system packages..."
 REQUIRED_PKGS=(
-    libcairo2-dev                  # build dep for pycairo (mopidy-tidal)
-    gstreamer1.0-plugins-bad       # AAC/MP4A decoder for Tidal streams
-    gstreamer1.0-libav             # additional codec support
+    python3-venv
+    libcairo2-dev
+    gstreamer1.0-plugins-bad
+    gstreamer1.0-libav
+    curl
+    git
 )
 MISSING=()
 for pkg in "${REQUIRED_PKGS[@]}"; do
-    pkg_name="${pkg%%[[:space:]]*}"  # strip inline comments
-    if ! dpkg -s "$pkg_name" &>/dev/null; then
-        MISSING+=("$pkg_name")
+    if ! dpkg -s "$pkg" &>/dev/null; then
+        MISSING+=("$pkg")
     fi
 done
 if [[ ${#MISSING[@]} -gt 0 ]]; then
@@ -144,22 +159,22 @@ Next steps:
 1. Update each Mopidy systemd service unit to use the venv's Python
    so it can see the installed plugins.
 
-   Option A — point ExecStart at the venv mopidy binary:
+   Option A -- point ExecStart at the venv mopidy binary:
 
-     ExecStart=/opt/mopidy-plugins/bin/mopidy --config /etc/mopidy/mopidy-ball.conf
+     ExecStart=/opt/mopidy-plugins/bin/mopidy --config /etc/mopidy/mopidy.conf
 
-   Option B — set PYTHONPATH in the unit (keeps /usr/bin/mopidy):
+   Option B -- set PYTHONPATH in the unit (keeps /usr/bin/mopidy):
 
      Environment=PYTHONPATH=/opt/mopidy-plugins/lib/python3.13/site-packages
 
    After editing, reload systemd:
 
      sudo systemctl daemon-reload
-     sudo systemctl restart mopidy-ball   # or your instance name(s)
+     sudo systemctl restart mopidy
 
-2. Configure mopidy-tidal (first run on each instance):
+2. Configure mopidy-tidal (first run, one time per instance):
 
-     sudo -u mopidy /opt/mopidy-plugins/bin/mopidy --config /etc/mopidy/mopidy-ball.conf
+     sudo -u mopidy /opt/mopidy-plugins/bin/mopidy --config /etc/mopidy/mopidy.conf
 
    Follow the Tidal OAuth prompts, then Ctrl-C and restart as a service.
 
@@ -167,7 +182,7 @@ Next steps:
 
      rm -rf /var/cache/mopidy/tidal/image   # adjust path per instance cache_dir
 
-4. To update in future:
+4. To update plugins in future:
 
      sudo ./scripts/install.sh --reinstall
 
