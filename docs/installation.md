@@ -231,4 +231,20 @@ To run more than one Mopidy instance (e.g. two rooms, two HDMI outputs), see
 
 ## Custom branding
 
-To replace the default logo and icons, see [branding.md](branding.md).
+The branding helper script is not included in the wheel. Download it directly
+from the repository:
+
+```bash
+sudo curl -fsSL \
+    https://raw.githubusercontent.com/brett-kimball/mopidy-pibox/main/scripts/update-branding.sh \
+    -o /usr/local/bin/pibox-update-branding
+sudo chmod +x /usr/local/bin/pibox-update-branding
+```
+
+Then run it with your source image:
+
+```bash
+MOPIDY_DATA_DIR=/var/lib/mopidy/pibox pibox-update-branding /path/to/logo.png
+```
+
+For full details see [branding.md](branding.md).
