@@ -315,11 +315,11 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
     def search_tidal_playlists(self, query=""):
         """Search Tidal for playlists by keyword using the tidalapi directly.
 
-        Uses the same oauth session that mopidy-tidal maintains so no extra
-        credentials are needed. Results are returned as {name, uri} dicts
-        compatible with the existing PlaylistSelector / session start flows.
-
-        Multi-word queries are joined with spaces for Tidal's search API.
+        Uses the same oauth token that mopidy-tidal maintains. We load it
+        read-only into a short-lived session, perform the search, then discard
+        the session. We deliberately do NOT write the token back to disk —
+        that is mopidy-tidal's job — to avoid invalidating the session that
+        the mopidy-tidal backend is actively using for playback.
         """
         q = query.strip()
         if not q:
@@ -332,12 +332,35 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             return []
 
         token_path = self._tidal_token_path
-        session = tidalapi.Session()
-        if not session.load_session_from_file(token_path):
-            self.logger.warning(f"Could not load Tidal session from {token_path}")
+        try:
+            import json as _json
+            with open(token_path) as f:
+                token_data = _json.load(f)
+        except Exception as e:
+            self.logger.warning(f"Could not read Tidal token from {token_path}: {e}")
             return []
 
+        session = tidalapi.Session()
         try:
+            # Restore the session from the token data without touching the file.
+            # tidalapi.Session.load_session_from_file() writes back on refresh;
+            # instead we call the underlying method directly.
+            token_type = token_data.get("token_type", "Bearer")
+            access_token = token_data.get("access_token")
+            refresh_token = token_data.get("refresh_token")
+            expiry_time = token_data.get("expiry_time")
+
+            if not access_token:
+                self.logger.warning("Tidal token file missing access_token")
+                return []
+
+            # Use the session's internal restore method — this does NOT write back.
+            session.load_oauth_session(token_type, access_token, refresh_token, expiry_time)
+
+            if not session.check_login():
+                self.logger.warning("Tidal search session could not log in; skipping search")
+                return []
+
             raw = session.search(q, models=[tidalapi.Playlist], limit=25)
             playlists = raw.get("playlists") or []
             return [
