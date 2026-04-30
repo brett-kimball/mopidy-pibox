@@ -33,7 +33,7 @@ sudo apt install -y \
 
 - `cage` — the Wayland kiosk compositor
 - `chromium` — the browser
-- `x11-apps` — provides `xcursorgen`, needed to generate the transparent cursor
+- `x11-apps` — provides `xcursorgen` (bundled, no separate package needed)
 - `imagemagick` — needed to create the transparent cursor PNG
 - `scrot` — screenshot utility, useful for debugging display issues
 
@@ -129,11 +129,7 @@ the cursor images in the Adwaita theme with transparent ones.
 
 ### Generate a transparent Xcursor file
 
-Install the cursor generation tools:
-
-```bash
-sudo apt install -y x11-apps xcursorgen imagemagick
-```
+`xcursorgen` is included in the `x11-apps` package already installed above.
 
 Create a working directory:
 
