@@ -156,9 +156,10 @@ Generate the Xcursor file:
 xcursorgen cursor.cfg cursors/default
 ```
 
-### Replace the Adwaita cursor images
+### Replace the Adwaita default cursor
 
-Back up the originals and replace with the transparent one:
+With no input device attached, only the `default` cursor is ever rendered.
+Back up and replace just that one file:
 
 ```bash
 sudo cp /usr/share/icons/Adwaita/cursors/default \
@@ -167,25 +168,6 @@ sudo cp /usr/share/icons/Adwaita/cursors/default \
 sudo cp ~/transparent-cursor/cursors/default \
     /usr/share/icons/Adwaita/cursors/default
 ```
-
-Many cursor names are symlinks to `default`. Verify and replace any that
-are not:
-
-```bash
-ls -la /usr/share/icons/Adwaita/cursors/ | grep -v " -> "
-```
-
-For any listed that are real files (not symlinks), copy the transparent
-cursor over them too:
-
-```bash
-sudo cp ~/transparent-cursor/cursors/default \
-    /usr/share/icons/Adwaita/cursors/FILENAME
-```
-
-The most common ones that need replacing are `default`, `arrow`, and
-`left_ptr`. On this installation, `arrow` and `left_ptr` were already
-symlinks to `default`, so only `default` needed replacing.
 
 ### Revert if needed
 
