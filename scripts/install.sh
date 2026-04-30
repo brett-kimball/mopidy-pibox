@@ -117,9 +117,9 @@ PIP="$VENV/bin/pip"
 # ---- Install / upgrade mopidy-tidal -------------------------------------
 echo "Installing mopidy-tidal from brett-kimball fork..."
 if [[ "$REINSTALL" == "true" ]]; then
-    "$PIP" install --force-reinstall --no-deps "git+${TIDAL_REPO}"
+    "$PIP" install --force-reinstall "git+${TIDAL_REPO}"
 else
-    "$PIP" install --no-deps "git+${TIDAL_REPO}"
+    "$PIP" install "git+${TIDAL_REPO}"
 fi
 TIDAL_VER=$("$VENV/bin/python" -c "import mopidy_tidal; print(mopidy_tidal.__version__)" 2>/dev/null || echo "unknown")
 echo "  mopidy-tidal installed: $TIDAL_VER"
