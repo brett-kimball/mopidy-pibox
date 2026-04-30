@@ -73,8 +73,10 @@ sudo /opt/mopidy-plugins/bin/pip install --no-deps \
 
 ## 5. Configure the systemd service
 
-The APT-installed `mopidy.service` uses `/usr/bin/mopidy`, which won't see the
-plugins installed in the venv. Override the `ExecStart` to use the venv binary:
+The APT-installed `/usr/bin/mopidy` won't see the plugins installed in the
+venv unless you tell it where to look. There are two ways to do this.
+
+### Option A — Use the venv's mopidy binary (recommended)
 
 ```bash
 sudo mkdir -p /etc/systemd/system/mopidy.service.d/
@@ -88,7 +90,34 @@ ExecStart=
 ExecStart=/opt/mopidy-plugins/bin/mopidy --config /etc/mopidy/mopidy.conf
 ```
 
-Reload and restart:
+### Option B — Keep the APT mopidy, add the venv to PYTHONPATH
+
+If you prefer to keep using `/usr/bin/mopidy`, point it at the venv's
+site-packages instead:
+
+```bash
+sudo mkdir -p /etc/systemd/system/mopidy.service.d/
+```
+
+Find the correct site-packages path:
+
+```bash
+ls /opt/mopidy-plugins/lib/
+# e.g. python3.11  — use whatever version is shown
+```
+
+Create `/etc/systemd/system/mopidy.service.d/venv.conf`:
+
+```ini
+[Service]
+Environment=PYTHONPATH=/opt/mopidy-plugins/lib/python3.11/site-packages
+```
+
+Replace `python3.11` with the actual version from the `ls` output above.
+
+---
+
+Whichever option you chose, reload and restart:
 
 ```bash
 sudo systemctl daemon-reload
