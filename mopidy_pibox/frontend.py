@@ -345,17 +345,25 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             # Restore the session from the token data without touching the file.
             # tidalapi.Session.load_session_from_file() writes back on refresh;
             # instead we call the underlying method directly.
-            token_type = token_data.get("token_type", "Bearer")
-            access_token = token_data.get("access_token")
-            refresh_token = token_data.get("refresh_token")
-            expiry_time = token_data.get("expiry_time")
+            # Token file wraps each value as {"data": value} — unwrap it.
+            def _get(key, default=None):
+                val = token_data.get(key, {})
+                if isinstance(val, dict):
+                    return val.get("data", default)
+                return val if val is not None else default
+
+            token_type = _get("token_type", "Bearer")
+            access_token = _get("access_token")
+            refresh_token = _get("refresh_token")
+            is_pkce = _get("is_pkce", False)
+            expiry_time = None  # not stored in file; token refresh handles it
 
             if not access_token:
                 self.logger.warning("Tidal token file missing access_token")
                 return []
 
             # Use the session's internal restore method — this does NOT write back.
-            session.load_oauth_session(token_type, access_token, refresh_token, expiry_time)
+            session.load_oauth_session(token_type, access_token, refresh_token, expiry_time, is_pkce)
 
             if not session.check_login():
                 self.logger.warning("Tidal search session could not log in; skipping search")
@@ -497,6 +505,10 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
                 self.logger.warning(
                     "Playback failed to start (track may be unavailable). Trying next track."
                 )
+                # Back off before retrying to avoid hammering the Tidal API
+                # when it is rate-limiting (429). Without this delay the retry
+                # loop fires instantly, sustaining the rate limit indefinitely.
+                time.sleep(5)
                 self.__queue_song_from_session_playlists()
                 # Only recurse if a track was actually queued.
                 # If __queue_song_from_session_playlists idled or all tracks
