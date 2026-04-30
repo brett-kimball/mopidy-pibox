@@ -30,14 +30,13 @@ Use the `update-branding.sh` script to generate all required images from a singl
 
 For best results, use a **square PNG with a transparent background**.
 
-### Custom Data Directory
+### System installations
 
-By default, images are saved to `~/.local/share/mopidy/pibox/branding/`.
-
-For system installations with a custom data directory (e.g., `/var/lib/mopidy-bar`), set the `MOPIDY_DATA_DIR` environment variable:
+For a system installation (mopidy running as the `mopidy` user), set
+`MOPIDY_DATA_DIR` to point at the system data directory:
 
 ```bash
-MOPIDY_DATA_DIR=/var/lib/mopidy-bar/pibox ./scripts/update-branding.sh /path/to/your-logo.png
+MOPIDY_DATA_DIR=/var/lib/mopidy/pibox ./scripts/update-branding.sh /path/to/your-logo.png
 ```
 
 ## Generated Images
@@ -65,7 +64,7 @@ rm -rf ~/.local/share/mopidy/pibox/branding/
 Or for system installations:
 
 ```bash
-sudo rm -rf /var/lib/mopidy-bar/pibox/branding/
+sudo rm -rf /var/lib/mopidy/pibox/branding/
 ```
 
 ## Manual Branding
