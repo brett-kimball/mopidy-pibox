@@ -53,7 +53,7 @@ export const useVolume = () => {
       if (throttleTimer.current) return;
       throttleTimer.current = setTimeout(() => {
         throttleTimer.current = null;
-        mutation.mutate(latestVol.current);
+        mutation.mutate({ volume: latestVol.current, eq: false }); // no EQ during drag
       }, 80);
     },
     [mutation, queryClient],
@@ -65,7 +65,7 @@ export const useVolume = () => {
         clearTimeout(throttleTimer.current);
         throttleTimer.current = null;
       }
-      mutation.mutate(vol);
+      mutation.mutate({ volume: vol, eq: true }); // apply EQ on release
     },
     [mutation],
   );

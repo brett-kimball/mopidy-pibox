@@ -304,8 +304,10 @@ export const getVolume = async () => {
   return result.data;
 };
 
-export const setVolume = async (volume) => {
-  const result = await pibox.post("/api/volume", { volume });
+export const setVolume = async (payload) => {
+  // payload may be { volume, eq } object or a plain number (legacy)
+  const body = typeof payload === "object" ? payload : { volume: payload, eq: true };
+  const result = await pibox.post("/api/volume", body);
   return result.data;
 };
 

@@ -330,6 +330,7 @@ class VolumeHandler(tornado.web.RequestHandler):
         try:
             data = tornado.escape.json_decode(self.request.body)
             knob_pct = max(0, min(100, int(data.get("volume", 50))))
+            apply_eq = data.get("eq", True)  # False during throttled drag, True on pointer-up flush
             # Map knob position to ALSA percentage using volume_min floor
             vol_min = cfg["vol_min"]
             alsa_pct = round(vol_min + knob_pct * (100 - vol_min) / 100)
@@ -341,7 +342,7 @@ class VolumeHandler(tornado.web.RequestHandler):
                 self.set_status(500)
                 self.write({"error": result.stderr.strip()})
                 return
-            if cfg["loudness"]:
+            if cfg["loudness"] and apply_eq:
                 try:
                     self._apply_loudness(knob_pct)  # use knob pct for curve lookup
                 except Exception as eq_err:
