@@ -45,12 +45,14 @@ const App = () => {
     selectedPlaylists,
     automaticallyStartPlaying,
     enableShuffle,
+    queueLimit,
   } = {}) => {
     await startSession(
       votesToSkip ?? config?.defaultSkipThreshold ?? 3,
       selectedPlaylists ?? [],
       automaticallyStartPlaying ?? true,
       enableShuffle ?? true,
+      queueLimit,
     );
     refetchSessionStarted();
     navigate("/");

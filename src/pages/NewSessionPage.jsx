@@ -152,6 +152,7 @@ function NewSessionForm({
     useState(true);
   const [enableShuffle, setEnableShuffle] = useState(true);
   const [queueLimit, setQueueLimit] = useState(`${initialQueueLimit ?? 2}`);
+  const [selectedPlaylists, setSelectedPlaylists] = useState(initialPlaylists || []);
 
   // Tidal playlist search state
   const [searchQuery, setSearchQuery] = useState("");
