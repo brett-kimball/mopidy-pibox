@@ -157,6 +157,8 @@ class Extension(ext.Extension):
         schema["volume_control"] = config.Boolean(optional=True)
         schema["volume_mixer_card"] = config.Integer(optional=True, minimum=0)
         schema["volume_mixer_control"] = config.String(optional=True)
+        schema["volume_loudness"] = config.Boolean(optional=True)
+        schema["volume_label"] = config.String(optional=True)
         return schema
 
     def setup(self, registry):

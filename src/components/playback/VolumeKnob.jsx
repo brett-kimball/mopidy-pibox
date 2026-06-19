@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import { IconButton } from "@mui/material";
 import { useVolume } from "hooks/volume";
+import { useConfig } from "hooks/config";
 
 // ── Knob geometry ─────────────────────────────────────────────────────────────
 const SIZE = 260;
@@ -37,6 +38,8 @@ function arcPath(startDeg, endDeg) {
 // ── Component ─────────────────────────────────────────────────────────────────
 export const VolumeKnob = ({ onClose }) => {
   const { volume: serverVolume, setVolume, flushVolume } = useVolume();
+  const { config } = useConfig();
+  const volumeLabel = config?.volumeLabel ? `${config.volumeLabel} Volume` : "Volume";
 
   // Local display volume — follows serverVolume when not dragging
   const [localVolume, setLocalVolume] = useState(serverVolume);
@@ -130,7 +133,8 @@ export const VolumeKnob = ({ onClose }) => {
   return (
     // Backdrop — click outside to close
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm"
+      style={{ zIndex: 1300 }}
       onClick={onClose}
     >
       {/* Dialog — stop propagation so clicks inside don't close */}
@@ -141,7 +145,7 @@ export const VolumeKnob = ({ onClose }) => {
       >
         {/* Header */}
         <div className="flex w-full items-center justify-between text-white">
-          <span className="text-lg font-medium">Volume</span>
+          <span className="text-lg font-medium">{volumeLabel}</span>
           <IconButton onClick={onClose} size="small" sx={{ color: "white" }}>
             <CloseIcon />
           </IconButton>

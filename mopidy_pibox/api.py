@@ -213,7 +213,40 @@ class VolumeHandler(tornado.web.RequestHandler):
     Requires [pibox] volume_control = true in mopidy.conf.
     Uses `amixer` to talk to the configured ALSA card/control.
     Volume is expressed as an integer percentage 0-100.
+
+    When [pibox] volume_loudness = true, also applies Fletcher-Munson
+    loudness compensation via alsaequal: more bass/treble at low volumes,
+    tapering to flat at high volumes.  Requires libasound2-plugin-equal
+    and a valid /etc/asound.conf defining the 'equal' device.
     """
+
+    # alsaequal band control names (as reported by `amixer -D equal scontrols`)
+    EQUAL_BANDS = [
+        "00. 31 Hz",
+        "01. 63 Hz",
+        "02. 125 Hz",
+        "03. 250 Hz",
+        "04. 500 Hz",
+        "05. 1 kHz",
+        "06. 2 kHz",
+        "07. 4 kHz",
+        "08. 8 kHz",
+        "09. 16 kHz",
+    ]
+
+    # Loudness compensation table: (volume_threshold, [band0..band9 dB offset])
+    # Values are ADDED to the base outdoor curve already set in mopidy.conf.
+    # At 100% volume the offset is 0 on all bands (no additional boost).
+    # alsaequal scale: 66 = 0 dB, each unit ≈ 0.5 dB, range 0-100 (-33/+17 dB)
+    LOUDNESS_CURVE = [
+        #  vol%   31   63  125  250  500  1k   2k   4k   8k  16k
+        (  0,  [ +8,  +9,  +8,  +4,  +2,  +1,  +1,  +2,  +3,  +4 ]),
+        ( 20,  [ +6,  +7,  +6,  +3,  +1,  +1,  +1,  +1,  +2,  +3 ]),
+        ( 40,  [ +4,  +5,  +4,  +2,   0,   0,   0,  +1,  +1,  +2 ]),
+        ( 60,  [ +2,  +3,  +2,  +1,   0,   0,   0,   0,  +1,  +1 ]),
+        ( 80,  [ +1,  +1,  +1,   0,   0,   0,   0,   0,   0,   0 ]),
+        (100,  [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0 ]),
+    ]
 
     def initialize(self, config):
         self.config = config
@@ -225,7 +258,37 @@ class VolumeHandler(tornado.web.RequestHandler):
             "enabled": pibox_config.get("volume_control", False),
             "card": str(pibox_config.get("volume_mixer_card") or 0),
             "control": pibox_config.get("volume_mixer_control") or "Digital",
+            "loudness": pibox_config.get("volume_loudness", False),
         }
+
+    def _loudness_offsets(self, pct):
+        """Interpolate per-band dB offsets from the loudness curve at `pct` volume."""
+        curve = self.LOUDNESS_CURVE
+        # Below first entry
+        if pct <= curve[0][0]:
+            return curve[0][1]
+        # Above last entry
+        if pct >= curve[-1][0]:
+            return curve[-1][1]
+        # Linear interpolation between surrounding entries
+        for i in range(len(curve) - 1):
+            lo_pct, lo_vals = curve[i]
+            hi_pct, hi_vals = curve[i + 1]
+            if lo_pct <= pct <= hi_pct:
+                t = (pct - lo_pct) / (hi_pct - lo_pct)
+                return [round(lo + t * (hi - lo)) for lo, hi in zip(lo_vals, hi_vals)]
+        return [0] * 10
+
+    def _apply_loudness(self, pct):
+        """Push computed EQ gains to alsaequal for the given volume percentage."""
+        offsets = self._loudness_offsets(pct)
+        for name, db_offset in zip(self.EQUAL_BANDS, offsets):
+            # alsaequal: 66 = 0 dB, 1 unit ≈ 0.5 dB
+            raw = max(0, min(100, 66 + round(db_offset * 2)))
+            subprocess.run(
+                ["amixer", "-D", "equal", "sset", name, str(raw)],
+                capture_output=True, timeout=2,
+            )
 
     def get(self):
         cfg = self._vol_cfg()
@@ -266,6 +329,11 @@ class VolumeHandler(tornado.web.RequestHandler):
                 self.set_status(500)
                 self.write({"error": result.stderr.strip()})
                 return
+            if cfg["loudness"]:
+                try:
+                    self._apply_loudness(pct)
+                except Exception as eq_err:
+                    self.logger.warning(f"Loudness EQ failed: {eq_err}")
             self.write({"volume": pct, "ok": True})
         except Exception as e:
             self.logger.exception("Failed to set volume")
@@ -370,6 +438,7 @@ class ConfigHandler(tornado.web.RequestHandler):
                 "voteLimitMinutes": pibox_config.get("vote_limit_minutes", None),
                 "queueLimitPerUser": pibox_config.get("queue_limit_per_user", None),
                 "volumeControl": pibox_config.get("volume_control", False),
+                "volumeLabel": pibox_config.get("volume_label") or "",
             }
         )
 
