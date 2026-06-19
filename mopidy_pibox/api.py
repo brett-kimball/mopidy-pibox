@@ -234,17 +234,18 @@ class VolumeHandler(tornado.web.RequestHandler):
         "09. 16 kHz",
     ]
 
-    # Loudness compensation table: (volume_threshold, [band0..band9 dB offset])
-    # Values are ADDED to the base outdoor curve already set in mopidy.conf.
-    # At 100% volume the offset is 0 on all bands (no additional boost).
-    # alsaequal scale: 66 = 0 dB, each unit ≈ 0.5 dB, range 0-100 (-33/+17 dB)
+    # Loudness compensation table: (knob_pct_threshold, [band0..band9 dB offset])
+    # Calibrated against described listening levels:
+    #   0-30% knob = silent/threshold, 60% = background, 70% = normal, 80% = party
+    # Values are ADDED to the base outdoor curve already in mopidy.conf.
+    # alsaequal scale: 66 = 0 dB, each unit ≈ 0.5 dB, range 0-100
     LOUDNESS_CURVE = [
-        #  vol%   31   63  125  250  500  1k   2k   4k   8k  16k
+        #  knob%  31   63  125  250  500  1k   2k   4k   8k  16k
         (  0,  [ +8,  +9,  +8,  +4,  +2,  +1,  +1,  +2,  +3,  +4 ]),
-        ( 20,  [ +6,  +7,  +6,  +3,  +1,  +1,  +1,  +1,  +2,  +3 ]),
-        ( 40,  [ +4,  +5,  +4,  +2,   0,   0,   0,  +1,  +1,  +2 ]),
-        ( 60,  [ +2,  +3,  +2,  +1,   0,   0,   0,   0,  +1,  +1 ]),
-        ( 80,  [ +1,  +1,  +1,   0,   0,   0,   0,   0,   0,   0 ]),
+        ( 30,  [ +6,  +7,  +6,  +3,  +1,  +1,  +1,  +1,  +2,  +3 ]),
+        ( 50,  [ +4,  +5,  +4,  +2,   0,   0,   0,  +1,  +1,  +2 ]),
+        ( 65,  [ +2,  +3,  +2,  +1,   0,   0,   0,   0,  +1,  +1 ]),
+        ( 75,  [ +1,  +1,  +1,   0,   0,   0,   0,   0,   0,   0 ]),
         (100,  [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0 ]),
     ]
 
@@ -259,6 +260,7 @@ class VolumeHandler(tornado.web.RequestHandler):
             "card": str(pibox_config.get("volume_mixer_card") or 0),
             "control": pibox_config.get("volume_mixer_control") or "Digital",
             "loudness": pibox_config.get("volume_loudness", False),
+            "vol_min": max(0, min(99, int(pibox_config.get("volume_min") or 0))),
         }
 
     def _loudness_offsets(self, pct):
@@ -303,7 +305,14 @@ class VolumeHandler(tornado.web.RequestHandler):
             )
             m = re.search(r'Playback\s+\d+\s+\[(\d+)%\]', result.stdout)
             if m:
-                self.write({"volume": int(m.group(1)), "enabled": True})
+                alsa_pct = int(m.group(1))
+                vol_min = cfg["vol_min"]
+                # Reverse-map ALSA value to knob position
+                if vol_min > 0 and alsa_pct >= vol_min:
+                    knob_pct = round((alsa_pct - vol_min) * 100 / (100 - vol_min))
+                else:
+                    knob_pct = alsa_pct
+                self.write({"volume": knob_pct, "enabled": True})
             else:
                 self.set_status(500)
                 self.write({"error": "Could not parse amixer output", "raw": result.stdout})
@@ -320,9 +329,12 @@ class VolumeHandler(tornado.web.RequestHandler):
             return
         try:
             data = tornado.escape.json_decode(self.request.body)
-            pct = max(0, min(100, int(data.get("volume", 50))))
+            knob_pct = max(0, min(100, int(data.get("volume", 50))))
+            # Map knob position to ALSA percentage using volume_min floor
+            vol_min = cfg["vol_min"]
+            alsa_pct = round(vol_min + knob_pct * (100 - vol_min) / 100)
             result = subprocess.run(
-                ["amixer", "-c", cfg["card"], "sset", cfg["control"], f"{pct}%"],
+                ["amixer", "-c", cfg["card"], "sset", cfg["control"], f"{alsa_pct}%"],
                 capture_output=True, text=True, timeout=3,
             )
             if result.returncode != 0:
@@ -331,10 +343,10 @@ class VolumeHandler(tornado.web.RequestHandler):
                 return
             if cfg["loudness"]:
                 try:
-                    self._apply_loudness(pct)
+                    self._apply_loudness(knob_pct)  # use knob pct for curve lookup
                 except Exception as eq_err:
                     self.logger.warning(f"Loudness EQ failed: {eq_err}")
-            self.write({"volume": pct, "ok": True})
+            self.write({"volume": knob_pct, "ok": True})
         except Exception as e:
             self.logger.exception("Failed to set volume")
             self.set_status(500)
