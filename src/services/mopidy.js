@@ -299,6 +299,16 @@ export const getConfig = async () => {
   return result.data;
 };
 
+export const getVolume = async () => {
+  const result = await pibox.get("/api/volume");
+  return result.data;
+};
+
+export const setVolume = async (volume) => {
+  const result = await pibox.post("/api/volume", { volume });
+  return result.data;
+};
+
 export const getCurrentSession = async () => {
   const result = await pibox.get("/api/session");
   return result.data;

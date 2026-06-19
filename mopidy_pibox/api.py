@@ -204,6 +204,75 @@ class SuggestionsHandler(PiboxHandler):
         self.write(json.dumps({"suggestions": suggestions}, cls=ModelJSONEncoder))
 
 
+import subprocess
+
+
+class VolumeHandler(tornado.web.RequestHandler):
+    """GET/POST /api/volume — read or set the ALSA hardware volume.
+
+    Requires [pibox] volume_control = true in mopidy.conf.
+    Uses `amixer` to talk to the configured ALSA card/control.
+    Volume is expressed as an integer percentage 0-100.
+    """
+
+    def initialize(self, config):
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+
+    def _vol_cfg(self):
+        pibox_config = self.config.get("pibox") or {}
+        return {
+            "enabled": pibox_config.get("volume_control", False),
+            "card": str(pibox_config.get("volume_mixer_card") or 0),
+            "control": pibox_config.get("volume_mixer_control") or "Digital",
+        }
+
+    def get(self):
+        cfg = self._vol_cfg()
+        if not cfg["enabled"]:
+            self.set_status(404)
+            self.write({"error": "volume_control not enabled"})
+            return
+        try:
+            result = subprocess.run(
+                ["amixer", "-c", cfg["card"], "sget", cfg["control"]],
+                capture_output=True, text=True, timeout=3,
+            )
+            m = re.search(r'Playback\s+\d+\s+\[(\d+)%\]', result.stdout)
+            if m:
+                self.write({"volume": int(m.group(1)), "enabled": True})
+            else:
+                self.set_status(500)
+                self.write({"error": "Could not parse amixer output", "raw": result.stdout})
+        except Exception as e:
+            self.logger.exception("Failed to get volume")
+            self.set_status(500)
+            self.write({"error": str(e)})
+
+    def post(self):
+        cfg = self._vol_cfg()
+        if not cfg["enabled"]:
+            self.set_status(404)
+            self.write({"error": "volume_control not enabled"})
+            return
+        try:
+            data = tornado.escape.json_decode(self.request.body)
+            pct = max(0, min(100, int(data.get("volume", 50))))
+            result = subprocess.run(
+                ["amixer", "-c", cfg["card"], "sset", cfg["control"], f"{pct}%"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode != 0:
+                self.set_status(500)
+                self.write({"error": result.stderr.strip()})
+                return
+            self.write({"volume": pct, "ok": True})
+        except Exception as e:
+            self.logger.exception("Failed to set volume")
+            self.set_status(500)
+            self.write({"error": str(e)})
+
+
 class PlaylistSearchHandler(PiboxHandler):
     """Search for Tidal playlists (not limited to liked/followed playlists).
 
@@ -249,7 +318,7 @@ class ConfigHandler(tornado.web.RequestHandler):
         # Allow explicit override via the config: [pibox] server_address = http://host:port
         configured_address = pibox_config.get("server_address")
         if configured_address:
-            server_address = configured_address
+            server_address = configured_address.rstrip("/")
         else:
             # Determine server network IP to allow frontends (kiosk) to
             # generate QR codes that point to the server's IP address.
@@ -300,6 +369,7 @@ class ConfigHandler(tornado.web.RequestHandler):
                 "voteLimitCount": pibox_config.get("vote_limit_count", None),
                 "voteLimitMinutes": pibox_config.get("vote_limit_minutes", None),
                 "queueLimitPerUser": pibox_config.get("queue_limit_per_user", None),
+                "volumeControl": pibox_config.get("volume_control", False),
             }
         )
 
@@ -318,8 +388,6 @@ class RebootHandler(tornado.web.RequestHandler):
             return
 
         try:
-            import subprocess
-
             # Run the configured reboot command. Use shell=True to allow complex commands
             # (e.g. with sudo). Command is administrator-provided via config.
             subprocess.Popen(reboot_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

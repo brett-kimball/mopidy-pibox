@@ -55,6 +55,11 @@ def get_http_handlers(core, config, frontend, static_directory_path, data_dir):
             {"core": core, "frontend": frontend},
         ),
         (
+            r"/api/volume/?",
+            api.VolumeHandler,
+            {"config": config},
+        ),
+        (
             r"/api/playlists/search/?",
             api.PlaylistSearchHandler,
             {"core": core, "frontend": frontend},
@@ -149,6 +154,9 @@ class Extension(ext.Extension):
         schema["queue_limit_per_user"] = config.Integer(optional=True, minimum=0)
         schema["reboot_command"] = config.String(optional=True)
         schema["ws_pong_timeout_ms"] = config.Integer(optional=True, minimum=1000)
+        schema["volume_control"] = config.Boolean(optional=True)
+        schema["volume_mixer_card"] = config.Integer(optional=True, minimum=0)
+        schema["volume_mixer_control"] = config.String(optional=True)
         return schema
 
     def setup(self, registry):
