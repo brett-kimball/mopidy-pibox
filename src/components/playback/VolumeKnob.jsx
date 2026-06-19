@@ -43,7 +43,7 @@ export const VolumeKnob = ({ onClose }) => {
   const localVolumeRef = useRef(localVolume);
 
   const isDragging = useRef(false);
-  const dragState = useRef(null); // { startAngle, startVolume }
+  const dragState = useRef(null); // { lastAngle, accumVol }
   const svgRef = useRef(null);
 
   // Sync with server when idle
@@ -74,15 +74,19 @@ export const VolumeKnob = ({ onClose }) => {
   const applyDelta = useCallback(
     (currentAngle) => {
       if (!dragState.current) return;
-      let delta = currentAngle - dragState.current.startAngle;
-      // Normalise wrap-around
+      let delta = currentAngle - dragState.current.lastAngle;
+      // Normalise wrap-around — consecutive events are always < 180° apart
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
       const deltaVol = (delta / SWEEP) * 100;
-      const newVol = Math.max(
+      // Accumulate as float to avoid rounding drift across many small moves
+      const newAccum = Math.max(
         0,
-        Math.min(100, Math.round(dragState.current.startVolume + deltaVol)),
+        Math.min(100, dragState.current.accumVol + deltaVol),
       );
+      const newVol = Math.round(newAccum);
+      dragState.current.lastAngle = currentAngle;
+      dragState.current.accumVol = newAccum;
       setLocalVolume(newVol);
       localVolumeRef.current = newVol;
       setVolume(newVol); // throttled
@@ -97,8 +101,8 @@ export const VolumeKnob = ({ onClose }) => {
       e.currentTarget.setPointerCapture(e.pointerId);
       isDragging.current = true;
       dragState.current = {
-        startAngle: getAngle(e),
-        startVolume: localVolumeRef.current,
+        lastAngle: getAngle(e),
+        accumVol: localVolumeRef.current,
       };
     },
     [getAngle],
