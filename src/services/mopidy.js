@@ -311,6 +311,11 @@ export const setVolume = async (payload) => {
   return result.data;
 };
 
+export const updateSettings = async (settings) => {
+  const result = await pibox.post("/api/settings", settings);
+  return result.data;
+};
+
 export const getCurrentSession = async () => {
   const result = await pibox.get("/api/session");
   return result.data;

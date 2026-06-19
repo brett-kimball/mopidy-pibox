@@ -144,8 +144,11 @@ class SessionHandler(PiboxHandler):
         playlists = data.get("playlists", [])
         auto_start = data.get("autoStart", True)
         shuffle = data.get("shuffle", True)
+        queue_limit = data.get("queueLimit", None)
+        if queue_limit is not None:
+            queue_limit = max(0, int(queue_limit))
 
-        self.frontend.start_session(int(skip_threshold), playlists, auto_start, shuffle)
+        self.frontend.start_session(int(skip_threshold), playlists, auto_start, shuffle, queue_limit)
         session = self.frontend.pibox.to_json().get(timeout=API_CALL_TIMEOUT)
 
         socket.PiboxWebSocket.send(
@@ -205,6 +208,42 @@ class SuggestionsHandler(PiboxHandler):
 
 
 import subprocess
+
+
+class SettingsHandler(PiboxHandler):
+    """GET/POST /api/settings — read or update runtime-adjustable session settings.
+
+    Settings changed here take effect immediately and persist until mopidy
+    restarts (in-memory only; mopidy.conf remains the source of defaults).
+
+    Supported fields:
+      queueLimitPerUser  (int, 0 = unlimited)
+      skipThreshold      (int, minimum 1)
+    """
+
+    def get(self):
+        pibox_config = self.frontend.config
+        queue_limit = self.frontend.pibox.queue_limit_per_user
+        skip_threshold = self.frontend.pibox.skip_threshold
+        self.set_header("Content-Type", "application/json")
+        self.write({
+            "queueLimitPerUser": queue_limit,
+            "skipThreshold": skip_threshold,
+        })
+
+    def post(self):
+        data = self._get_body()
+        changed = {}
+        if "queueLimitPerUser" in data:
+            limit = max(0, int(data["queueLimitPerUser"]))
+            self.frontend.pibox.set_queue_limit(limit)
+            changed["queueLimitPerUser"] = limit
+        if "skipThreshold" in data:
+            threshold = max(1, int(data["skipThreshold"]))
+            self.frontend.pibox.skip_threshold = threshold
+            changed["skipThreshold"] = threshold
+        self.set_header("Content-Type", "application/json")
+        self.write({"ok": True, "updated": changed})
 
 
 class VolumeHandler(tornado.web.RequestHandler):

@@ -7,9 +7,11 @@ import { useConfig } from "hooks/config";
 // ── Knob geometry ─────────────────────────────────────────────────────────────
 const SIZE = 260;
 const STROKE = 18;
-const R = (SIZE - STROKE) / 2; // 121
-const CX = SIZE / 2;            // 130
-const CY = SIZE / 2;            // 130
+const DOT_EXTRA = 4;           // dot radius = STROKE/2 + DOT_EXTRA
+const PADDING = 3;             // breathing room so stroke edge never clips
+const R = SIZE / 2 - STROKE / 2 - DOT_EXTRA - PADDING; // 130 - 9 - 4 - 3 = 114
+const CX = SIZE / 2;           // 130
+const CY = SIZE / 2;           // 130
 
 // The knob sweep runs clockwise from the lower-left (≈ 8 o'clock)
 // to the lower-right (≈ 4 o'clock), leaving a gap at the bottom.
@@ -185,7 +187,7 @@ export const VolumeKnob = ({ onClose }) => {
           {(() => {
             const dot = polarXY(valueAngle);
             return (
-              <circle cx={dot.x} cy={dot.y} r={STROKE / 2 + 3} fill="white" />
+              <circle cx={dot.x} cy={dot.y} r={STROKE / 2 + DOT_EXTRA} fill="white" />
             );
           })()}
           {/* Volume percentage label */}

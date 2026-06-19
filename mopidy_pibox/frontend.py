@@ -17,6 +17,7 @@
 import pykka
 import logging
 import time
+import threading
 from random import sample, shuffle
 
 from mopidy import core
@@ -70,8 +71,14 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         self.core.tracklist.set_consume(value=True)
 
-    def start_session(self, skip_threshold, playlists, auto_start, shuffle):
+        # Pause timeout — ends session if paused for too long
+        self._pause_timer = None
+
+    def start_session(self, skip_threshold, playlists, auto_start, shuffle, queue_limit=None):
         self.pibox.start_session(skip_threshold, playlists, shuffle)
+
+        if queue_limit is not None:
+            self.pibox.set_queue_limit(queue_limit)
 
         if auto_start and len(playlists) > 0:
             # Only auto-queue and play if playlists were selected
@@ -178,6 +185,52 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
     def playback_state_changed(self, old_state, new_state):
         self.logger.info(f"Playback state changed: {old_state} -> {new_state}")
+        if new_state == "paused":
+            self._start_pause_timeout()
+        else:
+            self._cancel_pause_timeout()
+
+    def _start_pause_timeout(self):
+        """Start the pause-to-session-end timer if configured."""
+        self._cancel_pause_timeout()
+        timeout_minutes = self.config.get("pause_timeout_minutes", 10)
+        if not timeout_minutes or timeout_minutes <= 0:
+            return
+        if not self.pibox.started:
+            return
+        timeout_seconds = timeout_minutes * 60
+        self.logger.info(
+            f"Playback paused — session will end in {timeout_minutes} minute(s) if not resumed"
+        )
+        self._pause_timer = threading.Timer(
+            timeout_seconds, self._pause_timeout_fired
+        )
+        self._pause_timer.daemon = True
+        self._pause_timer.start()
+
+    def _cancel_pause_timeout(self):
+        """Cancel a pending pause timeout."""
+        if self._pause_timer is not None:
+            self._pause_timer.cancel()
+            self._pause_timer = None
+
+    def _pause_timeout_fired(self):
+        """Called by the timer thread when pause timeout expires."""
+        self._pause_timer = None
+        try:
+            # Check we're still paused and session is still active before ending
+            state = self.core.playback.get_state().get(timeout=MOPIDY_CALL_TIMEOUT)
+            if state != "paused":
+                return
+            if not self.pibox.started:
+                return
+            self.logger.info("Pause timeout expired — ending session")
+            # Route through actor proxy for thread safety
+            self.actor_ref.proxy().end_session()
+            from . import socket as _socket
+            _socket.PiboxWebSocket.send("SESSION_ENDED", {})
+        except Exception as e:
+            self.logger.warning(f"Pause timeout handler failed: {e}")
 
     def get_queued_tracks(self, user_fingerprint):
         tracks = self.core.tracklist.get_tracks().get(timeout=MOPIDY_CALL_TIMEOUT)

@@ -22,7 +22,7 @@ import PlaylistSelector from "components/common/PlaylistSelector";
 
 const NewSessionPage = ({ onStartSessionClick }) => {
   const {
-    config: { defaultPlaylists, defaultSkipThreshold, offline, siteTitle },
+    config: { defaultPlaylists, defaultSkipThreshold, queueLimitPerUser, offline, siteTitle },
   } = useConfig();
   const { playlists, playlistsLoading } = usePlaylists();
 
@@ -30,6 +30,7 @@ const NewSessionPage = ({ onStartSessionClick }) => {
     return (
       <OfflineSessionForm
         initialSkipThreshold={defaultSkipThreshold}
+        initialQueueLimit={queueLimitPerUser ?? 2}
         onSubmit={onStartSessionClick}
         siteTitle={siteTitle}
       />
@@ -47,6 +48,7 @@ const NewSessionPage = ({ onStartSessionClick }) => {
   return (
     <NewSessionForm
       initialSkipThreshold={defaultSkipThreshold}
+      initialQueueLimit={queueLimitPerUser ?? 2}
       initialPlaylists={initialPlaylists}
       availablePlaylists={playlists}
       onSubmit={onStartSessionClick}
@@ -55,16 +57,18 @@ const NewSessionPage = ({ onStartSessionClick }) => {
   );
 };
 
-function OfflineSessionForm({ onSubmit, initialSkipThreshold, siteTitle }) {
+function OfflineSessionForm({ onSubmit, initialSkipThreshold, initialQueueLimit, siteTitle }) {
   const [votesToSkip, setVotesToSkip] = useState(`${initialSkipThreshold}`);
   const [automaticallyStartPlaying, setAutomaticallyStartPlaying] =
     useState(true);
   const [enableShuffle, setEnableShuffle] = useState(true);
+  const [queueLimit, setQueueLimit] = useState(`${initialQueueLimit ?? 2}`);
 
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit({
       votesToSkip,
+      queueLimit: parseInt(queueLimit, 10) || 0,
       automaticallyStartPlaying,
       enableShuffle,
     });
@@ -84,6 +88,17 @@ function OfflineSessionForm({ onSubmit, initialSkipThreshold, siteTitle }) {
         value={votesToSkip}
         onChange={(event) => setVotesToSkip(event.target.value)}
         placeholder="3"
+        inputProps={{ min: 1 }}
+      />
+
+      <TextField
+        fullWidth
+        label="Queue limit per user (0 = unlimited)"
+        type="number"
+        value={queueLimit}
+        onChange={(event) => setQueueLimit(event.target.value)}
+        placeholder="2"
+        inputProps={{ min: 0 }}
       />
 
       <FormControlLabel
@@ -127,6 +142,7 @@ function OfflineSessionForm({ onSubmit, initialSkipThreshold, siteTitle }) {
 function NewSessionForm({
   onSubmit,
   initialSkipThreshold,
+  initialQueueLimit,
   initialPlaylists,
   availablePlaylists,
   siteTitle,
@@ -135,7 +151,7 @@ function NewSessionForm({
   const [automaticallyStartPlaying, setAutomaticallyStartPlaying] =
     useState(true);
   const [enableShuffle, setEnableShuffle] = useState(true);
-  const [selectedPlaylists, setSelectedPlaylists] = useState(initialPlaylists);
+  const [queueLimit, setQueueLimit] = useState(`${initialQueueLimit ?? 2}`);
 
   // Tidal playlist search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -162,6 +178,7 @@ function NewSessionForm({
     onSubmit({
       selectedPlaylists,
       votesToSkip,
+      queueLimit: parseInt(queueLimit, 10) || 0,
       automaticallyStartPlaying,
       enableShuffle,
     });
@@ -181,6 +198,17 @@ function NewSessionForm({
         value={votesToSkip}
         onChange={(event) => setVotesToSkip(event.target.value)}
         placeholder="3"
+        inputProps={{ min: 1 }}
+      />
+
+      <TextField
+        fullWidth
+        label="Queue limit per user (0 = unlimited)"
+        type="number"
+        value={queueLimit}
+        onChange={(event) => setQueueLimit(event.target.value)}
+        placeholder="2"
+        inputProps={{ min: 0 }}
       />
 
       <PlaylistSelector

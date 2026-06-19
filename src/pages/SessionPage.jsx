@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { endSession, rebootSystem, updateSessionPlaylists } from "services/mopidy";
+import { endSession, rebootSystem, updateSessionPlaylists, updateSettings } from "services/mopidy";
 import {
   Button, IconButton, Collapse, CircularProgress,
   TextField, Typography, List, ListItem, ListItemText, ListItemSecondaryAction,
@@ -33,7 +33,7 @@ const SessionPage = () => {
   } = useSessionDetails();
 
   const { playlists: availablePlaylists, playlistsLoading, refetchPlaylists } = usePlaylists();
-  const { clearAdmin } = useAdmin();
+  const { clearAdmin, isAdmin } = useAdmin();
   const { config } = useConfig();
   const offline = config?.offline ?? false;
   const siteTitle = config?.siteTitle ?? "pibox";
@@ -43,6 +43,48 @@ const SessionPage = () => {
   const [selectedPlaylists, setSelectedPlaylists] = useState(playlists || []);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
+  const [editSkipThreshold, setEditSkipThreshold] = useState("");
+  const [editQueueLimit, setEditQueueLimit] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState(null);
+
+  const handleOpenSettings = () => {
+    setEditSkipThreshold(String(skipThreshold ?? ""));
+    setEditQueueLimit(String(config?.queueLimitPerUser ?? ""));
+    setSettingsError(null);
+    setIsEditingSettings(true);
+  };
+
+  const handleCancelSettings = () => {
+    setIsEditingSettings(false);
+    setSettingsError(null);
+  };
+
+  const handleSaveSettings = async () => {
+    const st = parseInt(editSkipThreshold, 10);
+    const ql = parseInt(editQueueLimit, 10);
+    if (isNaN(st) || st < 1) {
+      setSettingsError("Skip threshold must be a positive number");
+      return;
+    }
+    if (isNaN(ql) || ql < 0) {
+      setSettingsError("Queue limit must be 0 or more");
+      return;
+    }
+    setSettingsSaving(true);
+    setSettingsError(null);
+    try {
+      await updateSettings({ skipThreshold: st, queueLimitPerUser: ql });
+      setIsEditingSettings(false);
+      refetchSession();
+    } catch (e) {
+      setSettingsError(e.message || "Failed to update settings");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   // Tidal playlist search state (for the editor panel)
   const [searchQuery, setSearchQuery] = useState("");
@@ -258,16 +300,71 @@ const SessionPage = () => {
           label="Started"
           value={<p className="text-right">{startedAt.fromNow()}</p>}
         />
-        <SessionStatistic
-          label="Skip Threshold"
-          value={<p className="text-right">{skipThreshold}</p>}
-        />
-        {config?.queueLimitPerUser > 0 && (
-          <SessionStatistic
-            label="Queue Limit (per user)"
-            value={<p className="text-right">{config.queueLimitPerUser} track{config.queueLimitPerUser !== 1 ? "s" : ""}</p>}
-          />
-        )}
+        <div className="flex justify-between items-start w-full p-2 min-h-16 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <p className="font-bold text-gray-400">Skip Threshold:</p>
+            {isAdmin && !isEditingSettings && (
+              <IconButton size="small" onClick={handleOpenSettings} title="Edit settings">
+                <EditIcon fontSize="small" />
+              </IconButton>
+            )}
+          </div>
+          <p className="text-right">{skipThreshold}</p>
+        </div>
+        <div className="flex justify-between items-start w-full p-2 min-h-16 border-b border-gray-200">
+          <p className="font-bold text-gray-400">Queue Limit (per user):</p>
+          <p className="text-right">
+            {config?.queueLimitPerUser > 0
+              ? `${config.queueLimitPerUser} track${config.queueLimitPerUser !== 1 ? "s" : ""}`
+              : "Unlimited"}
+          </p>
+        </div>
+
+        {/* Settings Editor */}
+        <Collapse in={isEditingSettings}>
+          <div className="p-3 bg-gray-50 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-3">
+              <p className="font-semibold text-sm">Edit Settings</p>
+              <IconButton size="small" onClick={handleCancelSettings}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </div>
+            <div className="flex flex-col gap-3">
+              <TextField
+                size="small"
+                label="Votes to Skip"
+                type="number"
+                value={editSkipThreshold}
+                onChange={(e) => setEditSkipThreshold(e.target.value)}
+                inputProps={{ min: 1 }}
+                disabled={settingsSaving}
+                helperText="Votes needed to skip the current track"
+              />
+              <TextField
+                size="small"
+                label="Queue Limit (per user)"
+                type="number"
+                value={editQueueLimit}
+                onChange={(e) => setEditQueueLimit(e.target.value)}
+                inputProps={{ min: 0 }}
+                disabled={settingsSaving}
+                helperText="Max tracks queued per user (0 = unlimited)"
+              />
+            </div>
+            {settingsError && (
+              <p className="text-red-500 text-sm mt-2">{settingsError}</p>
+            )}
+            <div className="flex gap-2 mt-3 justify-end">
+              <Button variant="outlined" size="small" onClick={handleCancelSettings} disabled={settingsSaving}>
+                Cancel
+              </Button>
+              <Button variant="contained" size="small" onClick={handleSaveSettings} disabled={settingsSaving}>
+                {settingsSaving ? <CircularProgress size={16} /> : "Save"}
+              </Button>
+            </div>
+          </div>
+        </Collapse>
+
         {config?.voteLimitCount > 0 && config?.voteLimitMinutes > 0 && (
           <SessionStatistic
             label="Vote Rate Limit"

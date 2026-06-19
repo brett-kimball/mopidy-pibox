@@ -28,7 +28,9 @@ export const useVolume = () => {
 
   const mutation = useMutation({
     mutationFn: setVolume,
-    onMutate: (vol) => {
+    onMutate: (payload) => {
+      // payload may be { volume, eq } object or a plain number
+      const vol = typeof payload === "object" ? payload.volume : payload;
       // Optimistically update the cache so the knob stays in sync
       queryClient.setQueryData(["volume"], (old) => ({
         ...(old || {}),
