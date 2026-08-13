@@ -435,7 +435,8 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
                         continue
                     if m.id not in seen:
                         seen.add(m.id)
-                        result.append({"name": m.title, "uri": f"tidal:mix:{m.id}"})
+                        display_name = f"{m.title} – {m.sub_title}" if m.sub_title else m.title
+                        result.append({"name": display_name, "uri": f"tidal:mix:{m.id}"})
             except Exception as e:
                 self.logger.warning(f"Could not fetch Tidal mixes: {e}")
 
