@@ -75,28 +75,9 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         self._pause_timer = None
 
     def on_start(self):
-        """Called by pykka once the actor is running.
-
-        Performs an initial playlist refresh immediately, then schedules a
-        second refresh after a short delay. mopidy-tidal uses a lazy Tidal
-        connection: the first refresh triggers the connection, and the second
-        (deferred) refresh runs after the connection has had time to load the
-        user's live playlist list. This ensures stale cache entries (deleted
-        playlists, account changes) are overwritten with current Tidal data.
-        """
+        """Called by pykka once the actor is running. Trigger an initial
+        playlist refresh so mopidy-tidal's cache is populated."""
         self._refresh_playlists()
-        # Defer second refresh to run after the lazy Tidal connection settles.
-        t = threading.Timer(15.0, self._deferred_playlist_refresh)
-        t.daemon = True
-        t.start()
-
-    def _deferred_playlist_refresh(self):
-        """Second refresh fired 15s after startup once the Tidal connection is live."""
-        try:
-            self._refresh_playlists()
-            self.logger.info("Deferred playlist refresh complete")
-        except Exception as e:
-            self.logger.warning(f"Deferred playlist refresh failed: {e}")
 
     def start_session(self, skip_threshold, playlists, auto_start, shuffle, queue_limit=None):
         self.pibox.start_session(skip_threshold, playlists, shuffle)

@@ -1,32 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPlaylistsAndMixes, searchTidalPlaylists } from "services/mopidy";
-
-// How many times to retry fetching playlists before giving up.
-// Tidal loads asynchronously at startup; we poll briefly to wait for it.
-const PLAYLIST_MAX_RETRIES = 10; // ~30 seconds at 3s intervals
+import { getPlaylists, getMixes, searchTidalPlaylists } from "services/mopidy";
 
 export const usePlaylists = () => {
-  const { data, isLoading, error, refetch } = useQuery({
+  const playlistQuery = useQuery({
     queryKey: ["playlists"],
-    queryFn: getPlaylistsAndMixes,
+    queryFn: getPlaylists,
     staleTime: 60_000,
-    // Poll every 3s while empty, but only up to PLAYLIST_MAX_RETRIES times.
-    // This handles the case where mopidy-tidal needs a moment to load
-    // playlists at startup, without hammering the API forever on accounts
-    // with no liked playlists.
-    refetchInterval: (query) => {
-      const hasData = query.state.data && query.state.data.length > 0;
-      const retriesExhausted = query.state.fetchFailureCount >= PLAYLIST_MAX_RETRIES ||
-        query.state.dataUpdateCount >= PLAYLIST_MAX_RETRIES;
-      return hasData || retriesExhausted ? false : 3000;
-    },
+    // Retry a few times in case the backend isn't ready yet, then stop.
+    retry: 3,
+    retryDelay: 3000,
   });
 
+  const mixesQuery = useQuery({
+    queryKey: ["mixes"],
+    queryFn: getMixes,
+    staleTime: 60_000,
+    retry: 2,
+    retryDelay: 5000,
+  });
+
+  const playlists = playlistQuery.data || [];
+  const mixes = mixesQuery.data || [];
+
   return {
-    playlists: data || [],
-    playlistsLoading: isLoading,
-    error,
-    refetchPlaylists: refetch,
+    playlists: [...playlists, ...mixes],
+    playlistsLoading: playlistQuery.isLoading,
+    error: playlistQuery.error,
+    refetchPlaylists: playlistQuery.refetch,
   };
 };
 
