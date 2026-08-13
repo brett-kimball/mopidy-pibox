@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPlaylists, getMixes, searchTidalPlaylists } from "services/mopidy";
+import { getPlaylists, searchTidalPlaylists } from "services/mopidy";
 
 export const usePlaylists = () => {
   const playlistQuery = useQuery({
@@ -11,19 +11,8 @@ export const usePlaylists = () => {
     retryDelay: 3000,
   });
 
-  const mixesQuery = useQuery({
-    queryKey: ["mixes"],
-    queryFn: getMixes,
-    staleTime: 60_000,
-    retry: 2,
-    retryDelay: 5000,
-  });
-
-  const playlists = playlistQuery.data || [];
-  const mixes = mixesQuery.data || [];
-
   return {
-    playlists: [...playlists, ...mixes],
+    playlists: playlistQuery.data || [],
     playlistsLoading: playlistQuery.isLoading,
     error: playlistQuery.error,
     refetchPlaylists: playlistQuery.refetch,

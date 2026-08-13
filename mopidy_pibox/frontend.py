@@ -423,6 +423,22 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
                 if pl.id not in seen:
                     seen.add(pl.id)
                     result.append({"name": pl.name, "uri": f"tidal:playlist:{pl.id}"})
+
+            # Add all account custom mixes (Daily Discovery, My Mix 1-8, etc.),
+            # excluding video mixes which can't be played as audio playlists.
+            try:
+                import tidalapi.mix as _mixmod
+                video_type = getattr(_mixmod.MixType, "video_daily", None)
+                all_mixes = session.mixes() or []
+                for m in all_mixes:
+                    if video_type is not None and m.mix_type == video_type:
+                        continue
+                    if m.id not in seen:
+                        seen.add(m.id)
+                        result.append({"name": m.title, "uri": f"tidal:mix:{m.id}"})
+            except Exception as e:
+                self.logger.warning(f"Could not fetch Tidal mixes: {e}")
+
             return result
         except Exception as e:
             self.logger.warning(f"Failed to fetch user playlists from Tidal: {e}")
