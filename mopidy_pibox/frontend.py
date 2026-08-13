@@ -74,6 +74,95 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         # Pause timeout — ends session if paused for too long
         self._pause_timer = None
 
+    def on_start(self):
+        """Called by pykka once the actor is running. Refresh playlists from
+        Tidal and prune any cache files for playlists that no longer exist."""
+        self._refresh_playlists()
+        self._prune_tidal_playlist_cache()
+
+    def _sync_tidal_cache(self, data_dir):
+        """Wipe the mopidy-tidal playlist cache on every startup.
+
+        mopidy-tidal serves playlists.asList() from on-disk cache files before
+        it contacts Tidal. This means deleted playlists (or a changed account)
+        appear in the picker until a refresh completes — which may be after
+        pibox has already shown the user the stale list.
+
+        Wiping the playlist and playlist_metadata cache directories on every
+        mopidy startup forces a live fetch from Tidal, ensuring the list is
+        always accurate. The cache rebuilds automatically within seconds.
+        Track-level and image caches are left intact as they don't affect
+        playlist membership.
+        """
+        import shutil as _shutil
+        import pathlib as _pathlib
+
+        cache_dirs = [
+            "/var/cache/mopidy/tidal/playlist",
+            "/var/cache/mopidy/tidal/playlist_metadata",
+        ]
+
+        for d in cache_dirs:
+            try:
+                p = _pathlib.Path(d)
+                if p.exists():
+                    _shutil.rmtree(p)
+                    self.logger.info(f"Cleared tidal playlist cache: {d}")
+            except Exception as e:
+                self.logger.warning(f"Failed to clear tidal cache {d}: {e}")
+
+    def _prune_tidal_playlist_cache(self):
+        """Remove cache files for playlists that no longer exist in Tidal.
+
+        After a live refresh, fetches the current playlist URIs from mopidy-tidal
+        and deletes any .cache files in the playlist/playlist_metadata directories
+        whose playlist ID is not present in the live list. Handles both deleted
+        playlists and account changes without discarding valid cache entries.
+        """
+        import pathlib as _pathlib
+        import re as _re
+
+        cache_dirs = [
+            "/var/cache/mopidy/tidal/playlist",
+            "/var/cache/mopidy/tidal/playlist_metadata",
+        ]
+
+        try:
+            live_refs = self.core.playlists.as_list().get(timeout=MOPIDY_CALL_TIMEOUT) or []
+        except Exception as e:
+            self.logger.debug(f"Tidal cache prune: could not fetch playlist list: {e}")
+            return
+
+        # Extract playlist IDs from URIs like tidal:playlist:{id}
+        live_ids = set()
+        for ref in live_refs:
+            m = _re.search(r"tidal:playlist:(.+)$", ref.uri or "")
+            if m:
+                live_ids.add(m.group(1))
+
+        if not live_ids:
+            self.logger.debug("Tidal cache prune: no live playlists returned, skipping prune")
+            return
+
+        pruned = 0
+        for d in cache_dirs:
+            p = _pathlib.Path(d)
+            if not p.exists():
+                continue
+            for cache_file in p.rglob("*.cache"):
+                m = _re.search(r"tidal-playlist-(.+)\.cache$", cache_file.name)
+                if m and m.group(1) not in live_ids:
+                    try:
+                        cache_file.unlink()
+                        pruned += 1
+                    except Exception as e:
+                        self.logger.debug(f"Tidal cache prune: could not remove {cache_file}: {e}")
+
+        if pruned:
+            self.logger.info(f"Tidal cache prune: removed {pruned} stale cache file(s)")
+        else:
+            self.logger.debug("Tidal cache prune: all cached playlists are current")
+
     def start_session(self, skip_threshold, playlists, auto_start, shuffle, queue_limit=None):
         self.pibox.start_session(skip_threshold, playlists, shuffle)
 
