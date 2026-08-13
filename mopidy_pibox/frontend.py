@@ -75,31 +75,28 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         self._pause_timer = None
 
     def on_start(self):
-        """Called by pykka once the actor is running. Clear stale playlist
-        cache then refresh from Tidal."""
-        self._clear_tidal_playlist_cache()
-        self._refresh_playlists()
+        """Called by pykka once the actor is running.
 
-    def _clear_tidal_playlist_cache(self):
-        """Wipe the mopidy-tidal playlist and playlist_metadata cache directories.
-
-        mopidy-tidal serves playlists.asList() from on-disk cache files before
-        contacting Tidal, so deleted playlists and account changes produce stale
-        entries in the picker. Clearing these directories on every startup forces
-        a live fetch. The cache rebuilds automatically as playlists are browsed.
-        Track and image caches are left intact.
+        Performs an initial playlist refresh immediately, then schedules a
+        second refresh after a short delay. mopidy-tidal uses a lazy Tidal
+        connection: the first refresh triggers the connection, and the second
+        (deferred) refresh runs after the connection has had time to load the
+        user's live playlist list. This ensures stale cache entries (deleted
+        playlists, account changes) are overwritten with current Tidal data.
         """
-        import shutil as _shutil
-        import pathlib as _pathlib
+        self._refresh_playlists()
+        # Defer second refresh to run after the lazy Tidal connection settles.
+        t = threading.Timer(15.0, self._deferred_playlist_refresh)
+        t.daemon = True
+        t.start()
 
-        for d in ["/var/cache/mopidy/tidal/playlist", "/var/cache/mopidy/tidal/playlist_metadata"]:
-            try:
-                p = _pathlib.Path(d)
-                if p.exists():
-                    _shutil.rmtree(p)
-                    self.logger.info(f"Cleared tidal playlist cache: {d}")
-            except Exception as e:
-                self.logger.warning(f"Failed to clear tidal cache {d}: {e}")
+    def _deferred_playlist_refresh(self):
+        """Second refresh fired 15s after startup once the Tidal connection is live."""
+        try:
+            self._refresh_playlists()
+            self.logger.info("Deferred playlist refresh complete")
+        except Exception as e:
+            self.logger.warning(f"Deferred playlist refresh failed: {e}")
 
     def start_session(self, skip_threshold, playlists, auto_start, shuffle, queue_limit=None):
         self.pibox.start_session(skip_threshold, playlists, shuffle)
