@@ -80,37 +80,6 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         self._refresh_playlists()
         self._prune_tidal_playlist_cache()
 
-    def _sync_tidal_cache(self, data_dir):
-        """Wipe the mopidy-tidal playlist cache on every startup.
-
-        mopidy-tidal serves playlists.asList() from on-disk cache files before
-        it contacts Tidal. This means deleted playlists (or a changed account)
-        appear in the picker until a refresh completes — which may be after
-        pibox has already shown the user the stale list.
-
-        Wiping the playlist and playlist_metadata cache directories on every
-        mopidy startup forces a live fetch from Tidal, ensuring the list is
-        always accurate. The cache rebuilds automatically within seconds.
-        Track-level and image caches are left intact as they don't affect
-        playlist membership.
-        """
-        import shutil as _shutil
-        import pathlib as _pathlib
-
-        cache_dirs = [
-            "/var/cache/mopidy/tidal/playlist",
-            "/var/cache/mopidy/tidal/playlist_metadata",
-        ]
-
-        for d in cache_dirs:
-            try:
-                p = _pathlib.Path(d)
-                if p.exists():
-                    _shutil.rmtree(p)
-                    self.logger.info(f"Cleared tidal playlist cache: {d}")
-            except Exception as e:
-                self.logger.warning(f"Failed to clear tidal cache {d}: {e}")
-
     def _prune_tidal_playlist_cache(self):
         """Remove cache files for playlists that no longer exist in Tidal.
 
@@ -118,6 +87,9 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
         and deletes any .cache files in the playlist/playlist_metadata directories
         whose playlist ID is not present in the live list. Handles both deleted
         playlists and account changes without discarding valid cache entries.
+
+        mopidy-tidal uses lazy connection, so as_list() may return empty
+        immediately after refresh. We poll briefly until the list populates.
         """
         import pathlib as _pathlib
         import re as _re
@@ -127,10 +99,21 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             "/var/cache/mopidy/tidal/playlist_metadata",
         ]
 
-        try:
-            live_refs = self.core.playlists.as_list().get(timeout=MOPIDY_CALL_TIMEOUT) or []
-        except Exception as e:
-            self.logger.debug(f"Tidal cache prune: could not fetch playlist list: {e}")
+        # Poll up to ~30 seconds for the lazy Tidal connection to populate playlists.
+        live_refs = []
+        for attempt in range(10):
+            try:
+                live_refs = self.core.playlists.as_list().get(timeout=MOPIDY_CALL_TIMEOUT) or []
+            except Exception as e:
+                self.logger.debug(f"Tidal cache prune: could not fetch playlist list: {e}")
+                return
+            if live_refs:
+                break
+            self.logger.debug(f"Tidal cache prune: playlist list empty, retrying ({attempt + 1}/10)...")
+            time.sleep(3)
+
+        if not live_refs:
+            self.logger.debug("Tidal cache prune: no live playlists returned after polling, skipping prune")
             return
 
         # Extract playlist IDs from URIs like tidal:playlist:{id}
@@ -139,10 +122,6 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
             m = _re.search(r"tidal:playlist:(.+)$", ref.uri or "")
             if m:
                 live_ids.add(m.group(1))
-
-        if not live_ids:
-            self.logger.debug("Tidal cache prune: no live playlists returned, skipping prune")
-            return
 
         pruned = 0
         for d in cache_dirs:
