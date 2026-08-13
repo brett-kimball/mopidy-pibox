@@ -328,10 +328,10 @@ export const getSuggestions = async () => {
 
 export const getPlaylists = async () => {
   try {
-    const playlists = await mopidy.playlists.asList();
-    return playlists || [];
+    const result = await pibox.get("/api/playlists/mine");
+    return result.data || [];
   } catch (e) {
-    console.error("Could not fetch playlists:", e);
+    console.error("Could not fetch user playlists:", e);
     return [];
   }
 };

@@ -389,6 +389,64 @@ class PiboxFrontend(pykka.ThreadingActor, core.CoreListener):
 
         return unplayed_tracks
 
+    def get_user_playlists(self):
+        """Fetch the current user's liked/favorited Tidal playlists directly
+        via tidalapi, bypassing mopidy-tidal's cache entirely.
+
+        Returns a list of {name, uri} dicts in the same shape as
+        search_tidal_playlists(), suitable for the PlaylistSelector.
+        """
+        try:
+            import tidalapi
+        except ImportError:
+            self.logger.warning("tidalapi not available; cannot fetch user playlists")
+            return []
+
+        token_path = self._tidal_token_path
+        try:
+            import json as _json
+            with open(token_path) as f:
+                token_data = _json.load(f)
+        except Exception as e:
+            self.logger.warning(f"Could not read Tidal token: {e}")
+            return []
+
+        def _get(key, default=None):
+            val = token_data.get(key, {})
+            if isinstance(val, dict):
+                return val.get("data", default)
+            return val if val is not None else default
+
+        access_token = _get("access_token")
+        refresh_token = _get("refresh_token")
+        token_type = _get("token_type", "Bearer")
+        is_pkce = _get("is_pkce", False)
+
+        if not access_token:
+            self.logger.warning("Tidal token file missing access_token")
+            return []
+
+        session = tidalapi.Session()
+        try:
+            session.load_oauth_session(token_type, access_token, refresh_token, None, is_pkce)
+            if not session.check_login():
+                self.logger.warning("Tidal session could not log in; cannot fetch user playlists")
+                return []
+
+            playlists = session.user.playlists() or []
+            favorites = session.user.favorites.playlists() or []
+            # Combine, deduplicate by ID
+            seen = set()
+            result = []
+            for pl in list(playlists) + list(favorites):
+                if pl.id not in seen:
+                    seen.add(pl.id)
+                    result.append({"name": pl.name, "uri": f"tidal:playlist:{pl.id}"})
+            return result
+        except Exception as e:
+            self.logger.warning(f"Failed to fetch user playlists from Tidal: {e}")
+            return []
+
     def search_tidal_playlists(self, query=""):
         """Search Tidal for playlists by keyword using the tidalapi directly.
 

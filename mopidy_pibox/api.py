@@ -393,6 +393,16 @@ class VolumeHandler(tornado.web.RequestHandler):
             self.write({"error": str(e)})
 
 
+class UserPlaylistsHandler(PiboxHandler):
+    """GET /api/playlists/mine — fetch the authenticated user's Tidal playlists
+    directly via tidalapi, bypassing mopidy-tidal's cache."""
+
+    def get(self):
+        results = self.frontend.get_user_playlists().get(timeout=API_CALL_TIMEOUT)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(results))
+
+
 class PlaylistSearchHandler(PiboxHandler):
     """Search for Tidal playlists (not limited to liked/followed playlists).
 
